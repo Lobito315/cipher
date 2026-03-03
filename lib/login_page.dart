@@ -508,9 +508,15 @@ class _LoginPageState extends State<LoginPage> {
                                 const SizedBox(height: 24),
                                 // Footer Links
                                 Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
+                                    const Text(
+                                      "Don't have an account?",
+                                      style: TextStyle(
+                                        color: Color(0xFF94A3B8),
+                                        fontSize: 14,
+                                      ),
+                                    ),
                                     TextButton(
                                       onPressed: () {
                                         Navigator.push(
@@ -523,27 +529,36 @@ class _LoginPageState extends State<LoginPage> {
                                       },
                                       style: TextButton.styleFrom(
                                         foregroundColor: const Color(
-                                          0xFF64748B,
+                                          0xFFBEF263,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
                                         ),
                                       ),
                                       child: const Text(
-                                        'New account?',
-                                        style: TextStyle(fontSize: 14),
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () {},
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: const Color(
-                                          0xFF64748B,
+                                        'Sign Up Now',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                      ),
-                                      child: const Text(
-                                        'Emergency Wipe',
-                                        style: TextStyle(fontSize: 14),
                                       ),
                                     ),
                                   ],
+                                ),
+                                const SizedBox(height: 12),
+                                Center(
+                                  child: TextButton(
+                                    onPressed: () {},
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(
+                                        0xFF64748B,
+                                      ).withOpacity(0.5),
+                                    ),
+                                    child: const Text(
+                                      'Emergency Wipe',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
                                 // Bottom Safe Area Indicator (Visual only)
