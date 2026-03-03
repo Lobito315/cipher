@@ -1,0 +1,95 @@
+﻿Running Gradle task 'assembleDebug'...                          
+flutter : 
+En línea: 1 Carácter: 1
++ flutter build apk 
+--debug > 
+build_output.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (:String) [],    
+ RemoteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+FAILURE: Build failed 
+with an exception.
+
+* What went wrong:
+Execution failed for 
+task ':app:cleanMergeDe
+bugAssets'.
+> java.io.IOException: 
+Unable to delete 
+directory 
+'C:\Users\Richard M\One
+Drive\Documentos\Cipher
+\build\app\intermediate
+s\assets\debug\mergeDeb
+ugAssets'
+    Failed to delete 
+some children. This 
+might happen because a 
+process has files open 
+or has its working 
+directory set in the 
+target directory.
+    - C:\Users\Richard 
+M\OneDrive\Documentos\C
+ipher\build\app\interme
+diates\assets\debug\mer
+geDebugAssets\flutter_a
+ssets\fonts
+    - C:\Users\Richard 
+M\OneDrive\Documentos\C
+ipher\build\app\interme
+diates\assets\debug\mer
+geDebugAssets\flutter_a
+ssets\packages\cupertin
+o_icons\assets
+    - C:\Users\Richard 
+M\OneDrive\Documentos\C
+ipher\build\app\interme
+diates\assets\debug\mer
+geDebugAssets\flutter_a
+ssets\packages\cupertin
+o_icons
+    - C:\Users\Richard 
+M\OneDrive\Documentos\C
+ipher\build\app\interme
+diates\assets\debug\mer
+geDebugAssets\flutter_a
+ssets\packages
+    - C:\Users\Richard 
+M\OneDrive\Documentos\C
+ipher\build\app\interme
+diates\assets\debug\mer
+geDebugAssets\flutter_a
+ssets\shaders
+    - C:\Users\Richard 
+M\OneDrive\Documentos\C
+ipher\build\app\interme
+diates\assets\debug\mer
+geDebugAssets\flutter_a
+ssets
+
+* Try:
+> Run with 
+--stacktrace option to 
+get the stack trace.
+> Run with --info or 
+--debug option to get 
+more log output.
+> Run with --scan to 
+get full insights.
+> Get more help at http
+s://help.gradle.org.
+
+BUILD FAILED in 6s
+Running Gradle task 'assembleDebug'...                              7,0s
+Gradle task 
+assembleDebug failed 
+with exit code 1
