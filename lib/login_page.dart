@@ -6,6 +6,8 @@ import 'chat_list_page.dart';
 import 'services/auth_service.dart';
 import 'services/local_auth_service.dart';
 import 'services/secure_storage_service.dart';
+import 'services/encryption_service.dart';
+import 'services/profile_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,6 +20,8 @@ class _LoginPageState extends State<LoginPage> {
   final _authService = AuthService();
   final _localAuthService = LocalAuthService();
   final _secureStorage = SecureStorageService();
+  final _encryptionService = EncryptionService();
+  final _profileService = ProfileService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -46,6 +50,16 @@ class _LoginPageState extends State<LoginPage> {
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
+
+      // Initialize E2EE Identity Keys if they don't exist
+      await _encryptionService.initIdentityKeys();
+
+      // Sync Public Key to Supabase
+      final pubKey = await _encryptionService.getPublicKey();
+      final user = _authService.currentUser;
+      if (pubKey != null && user != null) {
+        await _profileService.updatePublicKey(user.id, pubKey);
+      }
 
       if (mounted) {
         Navigator.pushReplacement(

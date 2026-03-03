@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_page.dart';
 import 'services/auth_service.dart';
 import 'services/secure_storage_service.dart';
+import 'services/encryption_service.dart';
+import 'services/profile_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -15,6 +17,8 @@ class SignupPage extends StatefulWidget {
 class _SignupPageState extends State<SignupPage> {
   final _authService = AuthService();
   final _secureStorage = SecureStorageService();
+  final _encryptionService = EncryptionService();
+  final _profileService = ProfileService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -62,6 +66,16 @@ class _SignupPageState extends State<SignupPage> {
 
       // Save credentials for biometrics
       await _secureStorage.saveCredentials(email, password);
+
+      // Generate E2EE identity keys
+      await _encryptionService.initIdentityKeys();
+
+      // Sync Public Key to Supabase
+      final pubKey = await _encryptionService.getPublicKey();
+      final user = _authService.currentUser;
+      if (pubKey != null && user != null) {
+        await _profileService.updatePublicKey(user.id, pubKey);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

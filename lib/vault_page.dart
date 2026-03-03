@@ -1,17 +1,272 @@
 import 'package:flutter/material.dart';
+import 'services/vault_service.dart';
+import 'models/vault_item.dart';
 
-class VaultPage extends StatelessWidget {
+class VaultPage extends StatefulWidget {
   const VaultPage({super.key});
+
+  @override
+  State<VaultPage> createState() => _VaultPageState();
+}
+
+class _VaultPageState extends State<VaultPage> {
+  final _vaultService = VaultService();
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initVault();
+  }
+
+  Future<void> _initVault() async {
+    await _vaultService.init();
+    setState(() {
+      _isInitialized = true;
+    });
+  }
+
+  void _showAddItemDialog() {
+    final titleController = TextEditingController();
+    final userController = TextEditingController();
+    final passController = TextEditingController();
+    final noteController = TextEditingController();
+    String category = 'Credentials';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1B2210),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 24,
+          right: 24,
+          top: 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Add Secure Item',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildField('Title', titleController, Icons.title),
+              const SizedBox(height: 16),
+              _buildField(
+                'Username / Email',
+                userController,
+                Icons.person_outline,
+              ),
+              const SizedBox(height: 16),
+              _buildField(
+                'Password',
+                passController,
+                Icons.lock_outline,
+                isPassword: true,
+              ),
+              const SizedBox(height: 16),
+              _buildField(
+                'Note (Optional)',
+                noteController,
+                Icons.note_alt_outlined,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () async {
+                  if (titleController.text.isEmpty ||
+                      passController.text.isEmpty)
+                    return;
+
+                  await _vaultService.addItem(
+                    title: titleController.text,
+                    category: category,
+                    username: userController.text.isEmpty
+                        ? null
+                        : userController.text,
+                    password: passController.text,
+                    note: noteController.text.isEmpty
+                        ? null
+                        : noteController.text,
+                  );
+
+                  if (mounted) Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFBEF263),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Seal in Vault',
+                  style: TextStyle(
+                    color: Color(0xFF1B2210),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    bool isPassword = false,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: isPassword,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white60),
+        prefixIcon: Icon(icon, color: const Color(0xFFBEF263)),
+        enabledBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Colors.white12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Color(0xFFBEF263)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  void _showItemDetail(VaultItem item) async {
+    final password = await _vaultService.decryptField(item.encryptedPassword);
+    final note = item.encryptedNote != null
+        ? await _vaultService.decryptField(item.encryptedNote!)
+        : null;
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1B2210),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                  ),
+                  onPressed: () async {
+                    await _vaultService.deleteItem(item.id);
+                    if (mounted) Navigator.pop(context);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (item.username != null) ...[
+              const Text(
+                'USERNAME',
+                style: TextStyle(
+                  color: Colors.white38,
+                  fontSize: 10,
+                  letterSpacing: 1,
+                ),
+              ),
+              Text(
+                item.username!,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+            ],
+            const Text(
+              'PASSWORD',
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 10,
+                letterSpacing: 1,
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    password,
+                    style: const TextStyle(
+                      color: Color(0xFFBEF263),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy, color: Colors.white60, size: 20),
+                  onPressed: () {},
+                ),
+              ],
+            ),
+            if (note != null) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'SECURE NOTE',
+                style: TextStyle(
+                  color: Colors.white38,
+                  fontSize: 10,
+                  letterSpacing: 1,
+                ),
+              ),
+              Text(
+                note,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ],
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1B2210), // dark:bg-background-dark
+      backgroundColor: const Color(0xFF1B2210),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1B2210),
         elevation: 0,
         toolbarHeight: 80,
-        automaticallyImplyLeading: false, // Custom header
+        automaticallyImplyLeading: false,
         flexibleSpace: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -20,23 +275,20 @@ class VaultPage extends StatelessWidget {
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(
-                          0xFFBEF263,
-                        ).withOpacity(0.2), // primary/20
+                        color: const Color(0xFFBEF263).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
                         Icons.shield,
                         color: Color(0xFFBEF263),
                         size: 24,
-                      ), // shield_lock approx
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Column(
@@ -46,7 +298,7 @@ class VaultPage extends StatelessWidget {
                         const Text(
                           'Vault',
                           style: TextStyle(
-                            color: Color(0xFFF1F5F9), // text-slate-100
+                            color: Color(0xFFF1F5F9),
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             letterSpacing: -0.5,
@@ -64,11 +316,11 @@ class VaultPage extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             const Text(
-                              'AES-256 ENCRYPTED',
+                              'E2E LOCAL ENCRYPTION',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xCCBEF263), // primary/80
+                                color: Color(0xCCBEF263),
                                 letterSpacing: 1.5,
                               ),
                             ),
@@ -82,13 +334,10 @@ class VaultPage extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF1E293B), // dark:bg-slate-800
+                    color: Color(0xFF1E293B),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.search,
-                    color: Color(0xFF94A3B8), // dark:text-slate-400
-                  ),
+                  child: const Icon(Icons.search, color: Color(0xFF94A3B8)),
                 ),
               ],
             ),
@@ -97,277 +346,61 @@ class VaultPage extends StatelessWidget {
       ),
       body: Stack(
         children: [
-          ListView(
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              8,
-              16,
-              120,
-            ), // Padding for FAB and Nav
-            children: [
-              // Storage Overview Card
-              Container(
-                margin: const EdgeInsets.only(bottom: 32),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(
-                    0xFF1E293B,
-                  ).withOpacity(0.5), // dark:bg-slate-800/50
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFF1E293B),
-                  ), // dark:border-slate-800
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Storage Overview',
-                              style: TextStyle(
-                                color: Color(0xFF94A3B8), // dark:text-slate-400
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            RichText(
-                              text: const TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: '12.4 GB ',
-                                    style: TextStyle(
-                                      color: Color(
-                                        0xFFF1F5F9,
-                                      ), // dark:text-slate-100
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: '/ 20 GB',
-                                    style: TextStyle(
-                                      color: Color(
-                                        0xFF64748B,
-                                      ), // text-slate-500
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Text(
-                          '62% Used',
-                          style: TextStyle(
-                            color: Color(0xFFBEF263),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Progress bar
-                    Container(
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF334155), // dark:bg-slate-700
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 62,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFBEF263),
-                                borderRadius: BorderRadius.circular(6),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFFBEF263,
-                                    ).withOpacity(0.3),
-                                    blurRadius: 10,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const Expanded(flex: 38, child: SizedBox()),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(
-                      color: Color(0xFF1E293B),
-                    ), // dark:border-slate-800
-                    const SizedBox(height: 8),
-                    // Legends
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFBEF263),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                '7.2 GB Media',
-                                style: TextStyle(
-                                  color: Color(
-                                    0xFF94A3B8,
-                                  ), // dark:text-slate-400
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF94A3B8), // bg-slate-400
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                '5.2 GB Docs',
-                                style: TextStyle(
-                                  color: Color(
-                                    0xFF94A3B8,
-                                  ), // dark:text-slate-400
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+          _isInitialized
+              ? StreamBuilder<List<VaultItem>>(
+                  stream: _vaultService.watchItems(),
+                  builder: (context, snapshot) {
+                    final items = snapshot.data ?? [];
 
-              // Categories
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 12),
-                child: Text(
-                  'CATEGORIES',
-                  style: TextStyle(
-                    color: Color(0xFF94A3B8), // dark:text-slate-400
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ),
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 1.4,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                children: [
-                  _buildCategoryCard('image', 'Photos', '1,204 files'),
-                  _buildCategoryCard('description', 'Documents', '85 files'),
-                  _buildCategoryCard('mic', 'Voice Memos', '32 files'),
-                  _buildCategoryCard('vpn_key', 'Private Keys', '4 items'),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Recent Activity
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4.0,
-                  vertical: 12,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'RECENT ACTIVITY',
-                      style: TextStyle(
-                        color: Color(0xFF94A3B8), // dark:text-slate-400
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text(
-                        'View All',
-                        style: TextStyle(
-                          color: Color(0xFFBEF263),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                    return ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                      children: [
+                        _buildSummaryCard(items.length),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 4.0,
+                            vertical: 12,
+                          ),
+                          child: Text(
+                            'SECURE ITEMS',
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                        if (items.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(40.0),
+                              child: Text(
+                                'Vault is empty.\nAdd your first secret.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white24),
+                              ),
+                            ),
+                          )
+                        else
+                          ...items.map((item) => _buildVaultListItem(item)),
+                      ],
+                    );
+                  },
+                )
+              : const Center(
+                  child: CircularProgressIndicator(color: Color(0xFFBEF263)),
                 ),
-              ),
-              _buildRecentActivityItem(
-                icon: Icons.image,
-                title: 'Passport_Scan_Main.jpg',
-                subtitle: '2.4 MB • Encrypted',
-                statusText: '2h',
-                statusIcon: Icons.timer,
-                statusColor: Colors.amber,
-              ),
-              _buildRecentActivityItem(
-                icon: Icons.audio_file,
-                title: 'Meeting_Recording_Confidential.mp3',
-                subtitle: '18.1 MB • Encrypted',
-                statusText: 'Safe',
-                statusIcon: Icons.verified_user,
-                statusColor: const Color(0xFF94A3B8), // slate-400
-              ),
-              _buildRecentActivityItem(
-                icon: Icons.key,
-                title: 'Cold_Wallet_Recovery.txt',
-                subtitle: '12 KB • Encrypted',
-                statusText: '45m',
-                statusIcon: Icons.timer,
-                statusColor: Colors.amber,
-              ),
-            ],
-          ),
 
           // Secure Upload Button
           Positioned(
             bottom: 96,
             right: 24,
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: _showAddItemDialog,
               icon: const Icon(Icons.add_moderator, color: Color(0xFF1B2210)),
               label: const Text(
-                'Secure Upload',
+                'Add Secret',
                 style: TextStyle(
                   color: Color(0xFF1B2210),
                   fontWeight: FontWeight.bold,
@@ -383,7 +416,6 @@ class VaultPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(32),
                 ),
                 elevation: 8,
-                shadowColor: const Color(0xFFBEF263).withOpacity(0.5),
               ),
             ),
           ),
@@ -395,26 +427,29 @@ class VaultPage extends StatelessWidget {
             right: 0,
             child: Container(
               decoration: const BoxDecoration(
-                color: Color(0xCC1B2210), // dark:bg-background-dark/80
+                color: Color(0xCC1B2210),
                 border: Border(
                   top: BorderSide(color: Color(0xFF1E293B), width: 1),
                 ),
               ),
-              padding: const EdgeInsets.fromLTRB(
-                24,
-                12,
-                24,
-                24,
-              ), // padding for standard phone bottom
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildNavIcon(Icons.chat_bubble, 'Chats', false, () {
-                    Navigator.pop(context);
-                  }),
-                  _buildNavIcon(Icons.call, 'Calls', false, () {}),
+                  _buildNavIcon(
+                    Icons.chat_bubble_outline,
+                    'Chats',
+                    false,
+                    () => Navigator.pop(context),
+                  ),
+                  _buildNavIcon(Icons.call_outlined, 'Calls', false, () {}),
                   _buildNavIcon(Icons.shield, 'Vault', true, () {}),
-                  _buildNavIcon(Icons.settings, 'Settings', false, () {}),
+                  _buildNavIcon(
+                    Icons.settings_outlined,
+                    'Settings',
+                    false,
+                    () {},
+                  ),
                 ],
               ),
             ),
@@ -424,154 +459,101 @@ class VaultPage extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryCard(String iconName, String title, String subtitle) {
-    IconData iconData;
-    switch (iconName) {
-      case 'image':
-      case 'photo_library':
-        iconData = Icons.photo_library;
-        break;
-      case 'description':
-        iconData = Icons.description;
-        break;
-      case 'mic':
-        iconData = Icons.mic;
-        break;
-      case 'vpn_key':
-        iconData = Icons.vpn_key;
-        break;
-      default:
-        iconData = Icons.folder;
-    }
-
+  Widget _buildSummaryCard(int itemCount) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B).withOpacity(0.5), // dark:bg-slate-800/50
+        color: const Color(0xFF1E293B).withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF1E293B),
-        ), // dark:border-slate-800
+        border: Border.all(color: const Color(0xFF1E293B)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(iconData, color: const Color(0xFFBEF263), size: 32),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFFF1F5F9), // dark:text-slate-100
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
+              const Text(
+                'Protected Assets',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
-                subtitle,
+                '$itemCount Items Sealed',
                 style: const TextStyle(
-                  color: Color(0xFF64748B), // text-slate-500
-                  fontSize: 12,
+                  color: Color(0xFFF1F5F9),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
+          const Icon(Icons.verified_user, color: Color(0xFFBEF263), size: 32),
         ],
       ),
     );
   }
 
-  Widget _buildRecentActivityItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String statusText,
-    required IconData statusIcon,
-    required Color statusColor,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B).withOpacity(0.3), // dark:bg-slate-800/30
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF1E293B),
-        ), // dark:border-slate-800
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFBEF263).withOpacity(0.1), // primary/10
-              borderRadius: BorderRadius.circular(12),
+  Widget _buildVaultListItem(VaultItem item) {
+    return GestureDetector(
+      onTap: () => _showItemDetail(item),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B).withOpacity(0.3),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF1E293B)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFBEF263).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.vpn_key, color: Color(0xFFBEF263)),
             ),
-            child: Icon(icon, color: const Color(0xFFBEF263)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Color(0xFFF1F5F9), // dark:text-slate-100
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.lock,
-                      size: 14,
-                      color: Color(0xFF94A3B8),
-                    ), // text-slate-400
-                    const SizedBox(width: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: Color(0xFF64748B), // text-slate-500
-                        fontSize: 12,
-                      ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: const TextStyle(
+                      color: Color(0xFFF1F5F9),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(statusIcon, size: 12, color: statusColor),
-                const SizedBox(width: 4),
-                Text(
-                  statusText.toUpperCase(),
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.lock,
+                        size: 12,
+                        color: Color(0xFF64748B),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        item.username ?? 'No user',
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const Icon(Icons.chevron_right, color: Color(0xFF64748B)),
+          ],
+        ),
       ),
     );
   }
@@ -591,7 +573,7 @@ class VaultPage extends StatelessWidget {
             icon,
             color: isSelected
                 ? const Color(0xFFBEF263)
-                : const Color(0xFF64748B), // slate-500
+                : const Color(0xFF64748B),
           ),
           const SizedBox(height: 4),
           Text(

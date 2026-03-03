@@ -1,10 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/chat_service.dart';
+import 'package:intl/intl.dart';
 
-class ChatDetailPage extends StatelessWidget {
-  const ChatDetailPage({super.key});
+class ChatDetailPage extends StatefulWidget {
+  final String receiverId;
+  final String receiverName;
+
+  const ChatDetailPage({
+    super.key,
+    required this.receiverId,
+    this.receiverName = 'Secure Contact',
+  });
+
+  @override
+  State<ChatDetailPage> createState() => _ChatDetailPageState();
+}
+
+class _ChatDetailPageState extends State<ChatDetailPage> {
+  final _chatService = ChatService();
+  final _messageController = TextEditingController();
+  final _supabase = Supabase.instance.client;
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    _messageController.clear();
+    try {
+      await _chatService.sendMessage(receiverId: widget.receiverId, text: text);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending message: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final myId = _supabase.auth.currentUser?.id;
+
     return Scaffold(
       backgroundColor: const Color(0xFF1B2210), // dark:bg-background-dark
       appBar: AppBar(
@@ -13,84 +59,39 @@ class ChatDetailPage extends StatelessWidget {
         scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFFF1F5F9)),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
         titleSpacing: 0,
         title: Row(
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFBEF263).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFFBEF263).withOpacity(0.3),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      "https://lh3.googleusercontent.com/aida-public/AB6AXuBFU5v_BF5cGe5QqCfJuY0TEd31lPYxYos4NRgHUtt5z6a_fu8INIfAd1o7ED4NoX4L_ognKVYvFxlY3eMxf5G4xaCTX96sBo2_qg50Ld27FjQbxzZg95445sKNKVYcZk3dfoCMa0j1Hc21sWEpl2Fz0wLIHk0D2_zCJB3j0Ueln4UboA68Va4nqg0KmIoSt1jnj68iOgLaU7_Z35F9B1tEdXCEeLPXvuf2XdcCQrzNuLFmK-_zhsU17Cj0QEvaY-wyegTtN_BGB8w",
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFBEF263).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFBEF263).withOpacity(0.3),
                 ),
-                Positioned(
-                  bottom: -4,
-                  right: -4,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFBEF263),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFF1B2210),
-                        width: 2,
-                      ),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.verified,
-                        size: 10,
-                        color: Color(0xFF1B2210),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
+              child: const Icon(Icons.person, color: Color(0xFFBEF263)),
             ),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Cipher Alpha-7',
-                  style: TextStyle(
+                Text(
+                  widget.receiverName,
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFF1F5F9),
                     letterSpacing: -0.5,
                   ),
                 ),
-                Row(
+                const Row(
                   children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFBEF263),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
+                    Text(
                       'ACTIVE PROTOCOL',
                       style: TextStyle(
                         fontSize: 10,
@@ -116,19 +117,12 @@ class ChatDetailPage extends StatelessWidget {
           ),
           const SizedBox(width: 8),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: const Color(0xFFBEF263).withOpacity(0.1),
-            height: 1.0,
-          ),
-        ),
       ),
       body: Column(
         children: [
           // Quantum-Safe notification
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -146,14 +140,10 @@ class ChatDetailPage extends StatelessWidget {
                   ),
                   child: const Row(
                     children: [
-                      Icon(
-                        Icons.enhanced_encryption,
-                        size: 14,
-                        color: Color(0xFFBEF263),
-                      ),
+                      Icon(Icons.lock, size: 14, color: Color(0xFFBEF263)),
                       SizedBox(width: 8),
                       Text(
-                        'QUANTUM-SAFE ENCRYPTION ENABLED',
+                        'E2EE ENCRYPTION ACTIVE',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -170,327 +160,57 @@ class ChatDetailPage extends StatelessWidget {
 
           // Messages area
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              children: [
-                // Timestamp
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 24),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _chatService.getDecryptedMessagesStream(
+                widget.receiverId,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.red),
                     ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B).withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(16),
+                  );
+                }
+
+                final messages = snapshot.data ?? [];
+                if (messages.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No secure messages yet.',
+                      style: TextStyle(color: Colors.white24),
                     ),
-                    child: const Text(
-                      'TODAY',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF94A3B8),
-                        letterSpacing: 1.5,
-                      ),
-                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  reverse: true, // Show latest at bottom
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8,
                   ),
-                ),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    // Note: Supabase stream might return in chrono order,
+                    // reverse it if we want newest at bottom with reverse: true
+                    final msg = messages[messages.length - 1 - index];
+                    final isMe = msg['sender_id'] == myId;
+                    final time =
+                        DateTime.tryParse(msg['created_at'])?.toLocal() ??
+                        DateTime.now();
 
-                // Received Message
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.terminal,
-                          size: 16,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF1E293B),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                topRight: Radius.circular(16),
-                                bottomRight: Radius.circular(16),
-                                bottomLeft: Radius.circular(4),
-                              ),
-                              border: Border(
-                                left: BorderSide(
-                                  color: Color(0xFF38BDF8),
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            child: const Text(
-                              'The vault assets have been relocated. Terminal 4 is now offline.',
-                              style: TextStyle(
-                                color: Color(0xFFF1F5F9),
-                                fontSize: 14,
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Padding(
-                            padding: EdgeInsets.only(left: 4.0),
-                            child: Text(
-                              '09:41 AM',
-                              style: TextStyle(
-                                color: Color(0xFF64748B),
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 64), // Push gap from right
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Sent Message
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    const SizedBox(width: 64), // Push gap from left
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFBEF263),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                topRight: Radius.circular(16),
-                                bottomLeft: Radius.circular(16),
-                                bottomRight: Radius.circular(4),
-                              ),
-                            ),
-                            child: const Text(
-                              'Copy that. Initiating the #38BDF8 sequence for the secondary backup.',
-                              style: TextStyle(
-                                color: Color(0xFF1B2210),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Delivered',
-                                style: TextStyle(
-                                  color: Color(0xFF64748B),
-                                  fontSize: 10,
-                                ),
-                              ),
-                              SizedBox(width: 4),
-                              Icon(
-                                Icons.done_all,
-                                size: 12,
-                                color: Color(0xFFBEF263),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Security Alert
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withOpacity(0.2)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.visibility_off,
-                          size: 14,
-                          color: Colors.red[400],
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'SECURITY ALERT: SCREEN RECORDING BLOCKED',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red[400],
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Received Message with blurred image
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.terminal,
-                          size: 16,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF1E293B),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                topRight: Radius.circular(16),
-                                bottomRight: Radius.circular(16),
-                                bottomLeft: Radius.circular(4),
-                              ),
-                              border: Border(
-                                left: BorderSide(
-                                  color: Color(0xFF38BDF8),
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Blurred Image container
-                                Container(
-                                  width: double.infinity,
-                                  height: 120,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.05),
-                                    ),
-                                  ),
-                                  clipBehavior: Clip.hardEdge,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      Image.network(
-                                        "https://lh3.googleusercontent.com/aida-public/AB6AXuBCo61SJvsocYEdstACLo06GKRZNfV8pc0BWVI9UEaiSVhaBXSjSM-v4PyANl0uX0IO-KO2H7AB0BJ-YW_o1pCr2gKjQ7kVBo1gWjpfurHWf1zybyU4ArCfpK2SrhZv6WEKLweWWaKYIy0NinCv9zPB8ujGv2DPVAS10Jb2jLeu07nH0CTSRkSk0hW3u07cXAVrBDsjI5rUKpN2a0o7J-ytc-bWggBMG_3KApZMf2GYZuhBf0KgGfIvPkzNVg_j8tVMRFcEyacOXvA",
-                                        fit: BoxFit.cover,
-                                      ),
-                                      // Local blur effect (alternative to ImageFilter.blur to avoid complex imports if not needed, or just overlay black)
-                                      Container(
-                                        color: Colors.black.withOpacity(0.6),
-                                        child: Center(
-                                          child: Icon(
-                                            Icons.lock_outline,
-                                            color: const Color(
-                                              0xFFBEF263,
-                                            ).withOpacity(0.8),
-                                            size: 32,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                const Text(
-                                  'Encrypted blueprint attached. Self-destruct timer: 30s.',
-                                  style: TextStyle(
-                                    color: Color(0xFFF1F5F9),
-                                    fontSize: 14,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4.0),
-                            child: Row(
-                              children: [
-                                const Text(
-                                  '09:44 AM',
-                                  style: TextStyle(
-                                    color: Color(0xFF64748B),
-                                    fontSize: 10,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.timer,
-                                      size: 12,
-                                      color: Color(0xFF38BDF8),
-                                    ),
-                                    const SizedBox(width: 2),
-                                    const Text(
-                                      '28s',
-                                      style: TextStyle(
-                                        color: Color(0xFF38BDF8),
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 40), // Push gap from right
-                  ],
-                ),
-                const SizedBox(height: 32),
-              ],
+                    return _MessageBubble(
+                      text: msg['content'],
+                      isMe: isMe,
+                      time: DateFormat('HH:mm').format(time),
+                    );
+                  },
+                );
+              },
             ),
           ),
 
@@ -505,147 +225,162 @@ class ChatDetailPage extends StatelessWidget {
                 ),
               ),
             ),
-            child: Column(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A), // slate-900 approx
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFFBEF263).withOpacity(0.2),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.add_circle,
-                                color: Color(0xFF64748B),
-                              ),
-                              onPressed: () {},
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.timer_outlined,
-                                color: Color(0xFF64748B),
-                              ),
-                              onPressed: () {},
-                            ),
-                            Expanded(
-                              child: TextField(
-                                style: const TextStyle(
-                                  color: Color(0xFFF1F5F9),
-                                  fontSize: 14,
-                                ),
-                                decoration: const InputDecoration(
-                                  hintText: 'Type a secure message...',
-                                  hintStyle: TextStyle(
-                                    color: Color(0xFF64748B),
-                                    fontSize: 14,
-                                  ),
-                                  border: InputBorder.none,
-                                ),
-                                maxLines: 4,
-                                minLines: 1,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.mic,
-                                color: Color(0xFF64748B),
-                              ),
-                              onPressed: () {},
-                            ),
-                          ],
-                        ),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFBEF263).withOpacity(0.2),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Send Button
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFBEF263),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFBEF263).withOpacity(0.2),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.send,
-                          color: Color(0xFF1B2210),
-                          size: 20,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 12),
+                        const Icon(
+                          Icons.enhanced_encryption,
+                          color: Color(0xFFBEF263),
+                          size: 18,
                         ),
-                        onPressed: () {},
-                      ),
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            style: const TextStyle(
+                              color: Color(0xFFF1F5F9),
+                              fontSize: 14,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Secure message...',
+                              hintStyle: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
+                            maxLines: 4,
+                            minLines: 1,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                // Footer Status
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Opacity(
-                      opacity: 0.4,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.no_photography,
-                            size: 10,
-                            color: Color(0xFFF1F5F9),
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'ANTI-CAPTURE',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 2.0,
-                              color: Color(0xFFF1F5F9),
-                            ),
-                          ),
-                        ],
-                      ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFBEF263),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.send_rounded,
+                      color: Color(0xFF1B2210),
+                      size: 20,
                     ),
-                    SizedBox(width: 16),
-                    Opacity(
-                      opacity: 0.4,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.vpn_key,
-                            size: 10,
-                            color: Color(0xFFF1F5F9),
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'VAULT-MODE',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 2.0,
-                              color: Color(0xFFF1F5F9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    onPressed: _handleSendMessage,
+                  ),
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageBubble extends StatelessWidget {
+  final String text;
+  final bool isMe;
+  final String time;
+
+  const _MessageBubble({
+    required this.text,
+    required this.isMe,
+    required this.time,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isMe) ...[
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.person,
+                size: 16,
+                color: Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isMe
+                        ? const Color(0xFFBEF263)
+                        : const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: isMe
+                          ? const Radius.circular(16)
+                          : const Radius.circular(4),
+                      bottomRight: isMe
+                          ? const Radius.circular(4)
+                          : const Radius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      color: isMe
+                          ? const Color(0xFF1B2210)
+                          : const Color(0xFFF1F5F9),
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isMe) const SizedBox(width: 8), // Spacer to avoid edge
         ],
       ),
     );

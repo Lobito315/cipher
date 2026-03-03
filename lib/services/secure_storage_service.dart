@@ -29,4 +29,17 @@ class SecureStorageService {
     final password = await _storage.read(key: _keyMasterPassword);
     return email != null && password != null;
   }
+
+  // Generic methods for other security keys (E2EE)
+  Future<void> writeRaw(String key, String value) async {
+    await _storage.write(key: key, value: value);
+  }
+
+  Future<String?> readRaw(String key) async {
+    return await _storage.read(key: key);
+  }
+
+  Future<void> deleteRaw(String key) async {
+    await _storage.delete(key: key);
+  }
 }

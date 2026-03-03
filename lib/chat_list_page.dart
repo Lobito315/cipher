@@ -3,9 +3,102 @@ import 'package:flutter/material.dart';
 import 'chat_detail_page.dart';
 import 'privacy_page.dart';
 import 'vault_page.dart';
+import 'services/profile_service.dart';
+import 'services/chat_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
-class ChatListPage extends StatelessWidget {
+class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
+
+  @override
+  State<ChatListPage> createState() => _ChatListPageState();
+}
+
+class _ChatListPageState extends State<ChatListPage> {
+  final _profileService = ProfileService();
+  final _chatService = ChatService();
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    if (time.day == now.day &&
+        time.month == now.month &&
+        time.year == now.year) {
+      return DateFormat('hh:mm a').format(time);
+    } else if (now.difference(time).inDays < 7) {
+      return DateFormat('EEEE').format(time);
+    } else {
+      return DateFormat('MMM dd').format(time);
+    }
+  }
+
+  void _showSearchDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1B2210),
+        title: const Text(
+          'New Secure Chat',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Enter User ID or Email',
+            hintStyle: TextStyle(color: Colors.white30),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFFBEF263)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white60),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFBEF263),
+            ),
+            onPressed: () async {
+              final identifier = controller.text.trim();
+              if (identifier.isEmpty) return;
+
+              final profile = await _profileService.searchUser(identifier);
+              if (profile != null && mounted) {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatDetailPage(
+                      receiverId: profile['id'],
+                      receiverName: profile['email'] ?? 'Secure Contact',
+                    ),
+                  ),
+                );
+              } else if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('User not found or no public key'),
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              'Start Chat',
+              style: TextStyle(color: Color(0xFF1B2210)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +142,13 @@ class ChatListPage extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.add_comment_outlined,
+              color: Color(0xFFBEF263),
+            ),
+            onPressed: _showSearchDialog,
+          ),
           IconButton(
             icon: const Icon(
               Icons.shield_outlined,
@@ -141,58 +241,67 @@ class ChatListPage extends StatelessWidget {
           ),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ChatDetailPage()),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _chatService.getChatListStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final chats = snapshot.data ?? [];
+          if (chats.isEmpty) {
+            return const Center(
+              child: Text(
+                'No secure conversations yet.\nTap + to start one.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white24),
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: chats.length,
+            itemBuilder: (context, index) {
+              final chat = chats[index];
+              final myId = Supabase.instance.client.auth.currentUser?.id;
+              final otherId = chat['sender_id'] == myId
+                  ? chat['receiver_id']
+                  : chat['sender_id'];
+
+              return FutureBuilder<Map<String, dynamic>?>(
+                future: _profileService.searchUser(otherId),
+                builder: (context, profSnapshot) {
+                  final profile = profSnapshot.data;
+                  final name = profile?['email'] ?? 'Secure Contact';
+                  final time =
+                      DateTime.tryParse(chat['created_at'])?.toLocal() ??
+                      DateTime.now();
+                  final displayTime = _formatTime(time);
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatDetailPage(
+                            receiverId: otherId,
+                            receiverName: name,
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildChatListItem(
+                      name: name,
+                      time: displayTime,
+                      isEncrypted: true,
+                      message: 'Encrypted transmission',
+                    ),
+                  );
+                },
               );
             },
-            child: _buildChatListItem(
-              name: 'Aiden Pearce',
-              time: '10:42 AM',
-              isEncrypted: true,
-              imageUrl:
-                  "https://lh3.googleusercontent.com/aida-public/AB6AXuCqM8ybSnsL6FPAtLG6fAfeh1LwRg374twoUXhj3JGclAfbCIsr4CaLS97hLCzyhCsf9HJKDk7SyVcjYx0wCq9PCjo3auy9ZfqaXC_HqmnW0Dgd3Q-EkuUgAXK_wRSJLXT5pebyl5gfY1ir3OL-5kCxWlZ2dVzLBxL_s-njeTtttoWt6THmlzXvwHPleFV-YpZR8yjNpj73647RGutdUO49Jmo4KcykyTHv4fRQLUbWjkJuAKXUhDr1j0W7tmk5CmsC7bb4oXAqLJk",
-            ),
-          ),
-          _buildChatListItem(
-            name: 'Marcus Holloway',
-            time: 'Yesterday',
-            message:
-                "The keys are rotated. We're clear for the next phase of the...",
-            unreadCount: 2,
-            imageUrl:
-                "https://lh3.googleusercontent.com/aida-public/AB6AXuDff9bWXeeyfeiLWEqNMJGxrS1DLIiMeP2XlvJQnKk1DoxS7T3ZzoqjOsZ6KZa7G0TYegH48hMWGg1NidzgpylZ3jBeIN1aseXBaq2qr-IO65skWSm7jt-HTjuRkbAnnMcETQWwHtHbFnliZ99lNZhM9IY625t-MQC7N5knwQGNk9unjrJFNlZ92OMsGK7rkInJRz77f_HvaTPlc8TflkcZ-HMGTD_5Emx7jAm_iZOYHkJKnqQa7dtt_mweIu1seOpj4ZFY5rN6eH8",
-            isBorderTransparent: true,
-          ),
-          _buildChatListItem(
-            name: 'Hidden Channel',
-            time: '',
-            message: 'Message self-destructed',
-            isSelfDestructed: true,
-            imageUrl:
-                "https://lh3.googleusercontent.com/aida-public/AB6AXuDiIRO7SwbzQXkvRXcgJu62YQ0SzGh-X8gydcervQFK_yuhTHyDG0bqXnhXg8dpGuHN82Pori5JMACh1hp16mjmxYlpW8DEasuxxw5gCvMzzJEglWeSVx9IGRguFOpfUBIhGHNXGg-ZJxZZ8t-6BNEn8eds-d6gOMsDZicxchSSY4EdMpXofUBXwyfzu1ykdIM7SgrKM67Awh64bGgMyTPl5qoJjVjsUoVwWEzc3ERHjtIhJ48BwWhCowZ9exN74eCCM0eLJzggMMY",
-            isGhost: true,
-          ),
-          _buildChatListItem(
-            name: 'Clara Lille',
-            time: 'Tuesday',
-            message:
-                "Did you check the vault logs? Something is off about the...",
-            imageUrl:
-                "https://lh3.googleusercontent.com/aida-public/AB6AXuA7d0mAyZTtlHG9jy8VosnXMWesA5GrbSIn6zMOwMTAw4-w8HE1UkmRnxOiimYJjt2QYF-uf87LZ12HDzbyTbNIPruh6fLu6HVHzO-V6dJ3lxMD7jI9uXcFOvyHArErHuQ4DNYMHJUkxPfMkJd7rHSwqIDncElhAFxmOH1T3jNah4bjEskOjsaVTxebfqYnqjrNt7oUQ9g_sgnaDGN5jxqJiN4y3eqyKvfp9DkTFY6iiU69E4JFwnn-NG2azcll3iHtTjJI5Mr5FQY",
-          ),
-          _buildChatListItem(
-            name: 'The Collective',
-            time: 'Monday',
-            isEncrypted: true,
-            isGroup: true,
-          ),
-        ],
+          );
+        },
       ),
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 16.0),
