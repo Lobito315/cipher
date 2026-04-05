@@ -14,16 +14,20 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            project.android {
-                if (namespace == null) {
-                    namespace "com.cipher.patched.${project.name.replace("-", "_")}"
-                }
+    project.evaluationDependsOn(':app')
+}
+
+subprojects {
+    project.pluginManager.withPlugin("com.android.library") {
+        project.android {
+            if (namespace == null) {
+                def fallbackNamespace = "com.cipher.patched.${project.name.replace("-", "_")}"
+                namespace fallbackNamespace
             }
         }
     }
 }
+
 
 tasks.register("clean", Delete) {
     delete rootProject.layout.buildDirectory

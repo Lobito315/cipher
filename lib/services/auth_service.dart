@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 
@@ -43,6 +44,13 @@ class AuthService {
   }
 
   // Listen to auth changes (Simplified using Hub)
-  Stream<AuthHubEvent> get authStateChanges =>
-      Amplify.Hub.listen(HubChannel.Auth);
+  Stream<AuthHubEvent> get authStateChanges {
+    final controller = StreamController<AuthHubEvent>.broadcast();
+    Amplify.Hub.listen(HubChannel.Auth, (HubEvent event) {
+      if (event is AuthHubEvent) {
+        controller.add(event);
+      }
+    });
+    return controller.stream;
+  }
 }
