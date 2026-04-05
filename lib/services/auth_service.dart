@@ -1,38 +1,48 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 
 class AuthService {
-  final SupabaseClient _supabase = Supabase.instance.client;
-
   // Sign up
-  Future<AuthResponse> signUp({
+  Future<SignUpResult> signUp({
     required String email,
     required String password,
   }) async {
-    return await _supabase.auth.signUp(email: email, password: password);
+    final userAttributes = {
+      AuthUserAttributeKey.email: email,
+    };
+    return await Amplify.Auth.signUp(
+      username: email,
+      password: password,
+      options: SignUpOptions(userAttributes: userAttributes),
+    );
   }
 
   // Sign in
-  Future<AuthResponse> signIn({
+  Future<SignInResult> signIn({
     required String email,
     required String password,
   }) async {
-    return await _supabase.auth.signInWithPassword(
-      email: email,
+    return await Amplify.Auth.signIn(
+      username: email,
       password: password,
     );
   }
 
   // Sign out
   Future<void> signOut() async {
-    await _supabase.auth.signOut();
+    await Amplify.Auth.signOut();
   }
 
-  // Get current session
-  Session? get currentSession => _supabase.auth.currentSession;
-
   // Get current user
-  User? get currentUser => _supabase.auth.currentUser;
+  Future<AuthUser?> get currentUser async {
+    try {
+      return await Amplify.Auth.getCurrentUser();
+    } catch (e) {
+      return null;
+    }
+  }
 
-  // Listen to auth changes
-  Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;
+  // Listen to auth changes (Simplified using Hub)
+  Stream<AuthHubEvent> get authStateChanges =>
+      Amplify.Hub.listen(HubChannel.Auth);
 }

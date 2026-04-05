@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'services/chat_service.dart';
+import 'services/auth_service.dart';
 import 'package:intl/intl.dart';
 
 class ChatDetailPage extends StatefulWidget {
@@ -20,7 +21,7 @@ class ChatDetailPage extends StatefulWidget {
 class _ChatDetailPageState extends State<ChatDetailPage> {
   final _chatService = ChatService();
   final _messageController = TextEditingController();
-  final _supabase = Supabase.instance.client;
+  final _authService = AuthService();
 
   @override
   void dispose() {
@@ -49,251 +50,254 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final myId = _supabase.auth.currentUser?.id;
+    return FutureBuilder<AuthUser?>(
+      future: _authService.currentUser,
+      builder: (context, userSnapshot) {
+        final myId = userSnapshot.data?.userId;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1B2210), // dark:bg-background-dark
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1B2210).withOpacity(0.8),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFF1F5F9)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFFBEF263).withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFBEF263).withOpacity(0.3),
-                ),
-              ),
-              child: const Icon(Icons.person, color: Color(0xFFBEF263)),
+        return Scaffold(
+          backgroundColor: const Color(0xFF1B2210), // dark:bg-background-dark
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF1B2210).withOpacity(0.8),
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Color(0xFFF1F5F9)),
+              onPressed: () => Navigator.pop(context),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            titleSpacing: 0,
+            title: Row(
               children: [
-                Text(
-                  widget.receiverName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFF1F5F9),
-                    letterSpacing: -0.5,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFBEF263).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFFBEF263).withOpacity(0.3),
+                    ),
                   ),
+                  child: const Icon(Icons.person, color: Color(0xFFBEF263)),
                 ),
-                const Row(
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'ACTIVE PROTOCOL',
-                      style: TextStyle(
-                        fontSize: 10,
+                      widget.receiverName,
+                      style: const TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFBEF263),
-                        letterSpacing: 1.5,
+                        color: Color(0xFFF1F5F9),
+                        letterSpacing: -0.5,
                       ),
+                    ),
+                    const Row(
+                      children: [
+                        Text(
+                          'ACTIVE PROTOCOL',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFBEF263),
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ],
             ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.shield_outlined, color: Color(0xFF38BDF8)),
-            onPressed: () {},
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.shield_outlined, color: Color(0xFF38BDF8)),
+                onPressed: () {},
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_vert, color: Color(0xFFF1F5F9)),
+                onPressed: () {},
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Color(0xFFF1F5F9)),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Quantum-Safe notification
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
+          body: Column(
+            children: [
+              // Quantum-Safe notification
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFBEF263).withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFBEF263).withOpacity(0.1),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.lock, size: 14, color: Color(0xFFBEF263)),
+                          SizedBox(width: 8),
+                          Text(
+                            'E2EE ENCRYPTION ACTIVE',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFBEF263),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Messages area
+              Expanded(
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: _chatService.getDecryptedMessagesStream(
+                    widget.receiverId,
                   ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFBEF263).withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Error: ${snapshot.error}',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      );
+                    }
+
+                    final messages = snapshot.data ?? [];
+                    if (messages.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'No secure messages yet.',
+                          style: TextStyle(color: Colors.white24),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      reverse: true, // Show latest at bottom
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 8,
+                      ),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = messages[messages.length - 1 - index];
+                        final isMe = msg['sender_id'] == myId;
+                        final time =
+                            DateTime.tryParse(msg['createdAt'] ?? msg['created_at'])?.toLocal() ??
+                            DateTime.now();
+
+                        return _MessageBubble(
+                          text: msg['content'],
+                          isMe: isMe,
+                          time: DateFormat('HH:mm').format(time),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              // Bottom Input Area
+              Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B2210),
+                  border: Border(
+                    top: BorderSide(
                       color: const Color(0xFFBEF263).withOpacity(0.1),
                     ),
                   ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.lock, size: 14, color: Color(0xFFBEF263)),
-                      SizedBox(width: 8),
-                      Text(
-                        'E2EE ENCRYPTION ACTIVE',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFBEF263),
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
-              ],
-            ),
-          ),
-
-          // Messages area
-          Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _chatService.getDecryptedMessagesStream(
-                widget.receiverId,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  );
-                }
-
-                final messages = snapshot.data ?? [];
-                if (messages.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No secure messages yet.',
-                      style: TextStyle(color: Colors.white24),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  reverse: true, // Show latest at bottom
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8,
-                  ),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    // Note: Supabase stream might return in chrono order,
-                    // reverse it if we want newest at bottom with reverse: true
-                    final msg = messages[messages.length - 1 - index];
-                    final isMe = msg['sender_id'] == myId;
-                    final time =
-                        DateTime.tryParse(msg['created_at'])?.toLocal() ??
-                        DateTime.now();
-
-                    return _MessageBubble(
-                      text: msg['content'],
-                      isMe: isMe,
-                      time: DateFormat('HH:mm').format(time),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-
-          // Bottom Input Area
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1B2210),
-              border: Border(
-                top: BorderSide(
-                  color: const Color(0xFFBEF263).withOpacity(0.1),
-                ),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFFBEF263).withOpacity(0.2),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 12),
-                        const Icon(
-                          Icons.enhanced_encryption,
-                          color: Color(0xFFBEF263),
-                          size: 18,
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _messageController,
-                            style: const TextStyle(
-                              color: Color(0xFFF1F5F9),
-                              fontSize: 14,
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: 'Secure message...',
-                              hintStyle: TextStyle(
-                                color: Color(0xFF64748B),
-                                fontSize: 14,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 12,
-                              ),
-                            ),
-                            maxLines: 4,
-                            minLines: 1,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFBEF263).withOpacity(0.2),
                           ),
                         ),
-                      ],
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 12),
+                            const Icon(
+                              Icons.enhanced_encryption,
+                              color: Color(0xFFBEF263),
+                              size: 18,
+                            ),
+                            Expanded(
+                              child: TextField(
+                                controller: _messageController,
+                                style: const TextStyle(
+                                  color: Color(0xFFF1F5F9),
+                                  fontSize: 14,
+                                ),
+                                decoration: const InputDecoration(
+                                  hintText: 'Secure message...',
+                                  hintStyle: TextStyle(
+                                    color: Color(0xFF64748B),
+                                    fontSize: 14,
+                                  ),
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
+                                ),
+                                maxLines: 4,
+                                minLines: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFBEF263),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.send_rounded,
-                      color: Color(0xFF1B2210),
-                      size: 20,
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFBEF263),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.send_rounded,
+                          color: Color(0xFF1B2210),
+                          size: 20,
+                        ),
+                        onPressed: _handleSendMessage,
+                      ),
                     ),
-                    onPressed: _handleSendMessage,
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

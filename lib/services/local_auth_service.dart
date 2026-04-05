@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 
@@ -8,7 +9,7 @@ class LocalAuthService {
     try {
       return await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
     } on PlatformException catch (e) {
-      print('Error checking biometrics: $e');
+      debugPrint('Error checking biometrics: $e');
       return false;
     }
   }
@@ -22,7 +23,7 @@ class LocalAuthService {
         localizedReason: 'Please authenticate to access your Cipher Vault',
       );
     } on PlatformException catch (e) {
-      print('Error authenticating: $e');
+      debugPrint('Error authenticating: $e');
       return false;
     }
   }

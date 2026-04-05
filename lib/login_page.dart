@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'signup_page.dart';
 import 'chat_list_page.dart';
 import 'services/auth_service.dart';
@@ -40,7 +40,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      await _authService.signIn(
+      final result = await _authService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
@@ -54,18 +54,25 @@ class _LoginPageState extends State<LoginPage> {
       // Initialize E2EE Identity Keys if they don't exist
       await _encryptionService.initIdentityKeys();
 
-      // Sync Public Key to Supabase
+      // Sync Public Key to AWS
       final pubKey = await _encryptionService.getPublicKey();
-      final user = _authService.currentUser;
+      final user = await _authService.currentUser;
       if (pubKey != null && user != null) {
-        await _profileService.updatePublicKey(user.id, pubKey);
+        await _profileService.updatePublicKey(user.userId, pubKey);
       }
 
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ChatListPage()),
-        );
+        if (result.isSignedIn) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const ChatListPage()),
+          );
+        } else {
+          // Handle cases like nextStep being confirmSignUp, etc.
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Login Status: ${result.nextStep.signInStep}')),
+          );
+        }
       }
     } on AuthException catch (e) {
       if (mounted) {
@@ -144,7 +151,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0C07),
+      backgroundColor: const Color(0xFF12140D), // Slightly lighter than 0x0A0C07 for better visibility
       body: Stack(
         children: [
           // Background mesh approximation
@@ -189,10 +196,12 @@ class _LoginPageState extends State<LoginPage> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFBEF263).withOpacity(0.1),
+                          color: const Color(0xFFBEF263).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: const Color(0xFFBEF263).withOpacity(0.2),
+                            color: const Color(
+                              0xFFBEF263,
+                            ).withValues(alpha: 0.2),
                           ),
                         ),
                         child: const Icon(
@@ -232,46 +241,46 @@ class _LoginPageState extends State<LoginPage> {
                                 children: [
                                   // Blur effect
                                   Container(
-                                    width: 256,
-                                    height: 256,
+                                    width: 180,
+                                    height: 180,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: const Color(
                                         0xFFBEF263,
-                                      ).withOpacity(0.05),
+                                      ).withValues(alpha: 0.05),
                                       boxShadow: [
                                         BoxShadow(
                                           color: const Color(
                                             0xFFBEF263,
-                                          ).withOpacity(0.05),
+                                          ).withValues(alpha: 0.05),
                                           blurRadius: 40,
                                           spreadRadius: 20,
                                         ),
                                       ],
                                     ),
                                   ),
-                                  Container(
-                                    width: 256,
-                                    height: 256,
+                                   Container(
+                                    width: 180,
+                                    height: 180,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       border: Border.all(
                                         color: const Color(
                                           0xFFBEF263,
-                                        ).withOpacity(0.1),
+                                        ).withValues(alpha: 0.1),
                                         width: 2,
                                       ),
                                     ),
                                     child: Center(
                                       child: Container(
-                                        width: 192,
-                                        height: 192,
+                                        width: 100,
+                                        height: 100,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
                                           border: Border.all(
                                             color: const Color(
                                               0xFFBEF263,
-                                            ).withOpacity(0.2),
+                                            ).withValues(alpha: 0.2),
                                           ),
                                         ),
                                         child: Center(
@@ -283,9 +292,26 @@ class _LoginPageState extends State<LoginPage> {
                                               opacity: 0.6,
                                               child: Image.network(
                                                 "https://lh3.googleusercontent.com/aida-public/AB6AXuCMdiQzUsC1_xPQIxFd0JrHU24I99kHUPiaXQjxBYp6jGi33u2QEnWtJ6dUIYPA9b-pXnoKLpZ4UarEwJxuwIBs3ahFfpPOfHOVy5r6UxMXdIXvzq3AN0GbCUd-fj7cD2Gap-64wOKvRpsdLdUtyQ3M0sh7uSstCvU1_Yrgh1aH2RTE_EiBzjVtCxhDXIxNT4AMlv3Qmbuv-G0DxlYztTbJ8aEZTFVYifmhzk1C7YSJ1eBBsMWOFkkVFm_czWw1WRvEis8kRz39KkQ",
-                                                width: double.infinity,
-                                                height: double.infinity,
                                                 fit: BoxFit.cover,
+                                                loadingBuilder: (context, child, loadingProgress) {
+                                                  if (loadingProgress == null) return child;
+                                                  return Center(
+                                                    child: CircularProgressIndicator(
+                                                      value: loadingProgress.expectedTotalBytes != null
+                                                          ? loadingProgress.cumulativeBytesLoaded /
+                                                              loadingProgress.expectedTotalBytes!
+                                                          : null,
+                                                      color: const Color(0xFFBEF263),
+                                                    ),
+                                                  );
+                                                },
+                                                errorBuilder: (context, error, stackTrace) {
+                                                  return const Icon(
+                                                    Icons.image_not_supported,
+                                                    color: Color(0xFF3A4823),
+                                                    size: 48,
+                                                  );
+                                                },
                                               ),
                                             ),
                                           ),
@@ -295,7 +321,7 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 32),
+                               const SizedBox(height: 24),
                               const Text(
                                 'Welcome to Cipher',
                                 style: TextStyle(
@@ -321,7 +347,7 @@ class _LoginPageState extends State<LoginPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 24),
 
                         // Action Section
                         Padding(
@@ -428,7 +454,7 @@ class _LoginPageState extends State<LoginPage> {
                                     elevation: 10,
                                     shadowColor: const Color(
                                       0xFFBEF263,
-                                    ).withOpacity(0.2),
+                                    ).withValues(alpha: 0.2),
                                   ),
                                   child: _isLoading
                                       ? const CircularProgressIndicator(
@@ -452,57 +478,48 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(height: 16),
                                 // Secondary Action (Biometrics)
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 12,
-                                      sigmaY: 12,
+                                OutlinedButton(
+                                  onPressed: _loginWithBiometrics,
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: const Color(
+                                        0xFFBEF263,
+                                      ).withOpacity(0.1),
                                     ),
-                                    child: OutlinedButton(
-                                      onPressed: _loginWithBiometrics,
-                                      style: OutlinedButton.styleFrom(
-                                        side: BorderSide(
-                                          color: const Color(
-                                            0xFFBEF263,
-                                          ).withOpacity(0.1),
-                                        ),
-                                        backgroundColor: const Color(
-                                          0xFF1C2211,
-                                        ).withOpacity(0.4),
-                                        foregroundColor: const Color(
-                                          0xFFF1F5F9,
-                                        ),
-                                        minimumSize: const Size(
-                                          double.infinity,
-                                          56,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                      ),
-                                      child: const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.fingerprint,
-                                            color: Color(0xFFBEF263),
-                                            size: 24,
-                                          ),
-                                          SizedBox(width: 12),
-                                          Text(
-                                            'Use Biometrics',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
+                                    backgroundColor: const Color(
+                                      0xFF1C2211,
+                                    ).withOpacity(0.4),
+                                    foregroundColor: const Color(
+                                      0xFFF1F5F9,
+                                    ),
+                                    minimumSize: const Size(
+                                      double.infinity,
+                                      56,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        16,
                                       ),
                                     ),
+                                  ),
+                                  child: const Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.fingerprint,
+                                        color: Color(0xFFBEF263),
+                                        size: 24,
+                                      ),
+                                      SizedBox(width: 12),
+                                      Text(
+                                        'Use Biometrics',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 const SizedBox(height: 24),
@@ -552,7 +569,7 @@ class _LoginPageState extends State<LoginPage> {
                                     style: TextButton.styleFrom(
                                       foregroundColor: const Color(
                                         0xFF64748B,
-                                      ).withOpacity(0.5),
+                                      ).withValues(alpha: 0.5),
                                     ),
                                     child: const Text(
                                       'Emergency Wipe',

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'services/vault_service.dart';
 import 'models/vault_item.dart';
+import 'chat_list_page.dart';
+import 'calls_page.dart';
+import 'settings_page.dart';
 
 class VaultPage extends StatefulWidget {
   const VaultPage({super.key});
@@ -85,8 +88,9 @@ class _VaultPageState extends State<VaultPage> {
               ElevatedButton(
                 onPressed: () async {
                   if (titleController.text.isEmpty ||
-                      passController.text.isEmpty)
+                      passController.text.isEmpty) {
                     return;
+                  }
 
                   await _vaultService.addItem(
                     title: titleController.text,
@@ -100,7 +104,7 @@ class _VaultPageState extends State<VaultPage> {
                         : noteController.text,
                   );
 
-                  if (mounted) Navigator.pop(context);
+                  if (context.mounted) Navigator.pop(context);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFBEF263),
@@ -189,7 +193,7 @@ class _VaultPageState extends State<VaultPage> {
                   ),
                   onPressed: () async {
                     await _vaultService.deleteItem(item.id);
-                    if (mounted) Navigator.pop(context);
+                    if (context.mounted) Navigator.pop(context);
                   },
                 ),
               ],
@@ -281,7 +285,7 @@ class _VaultPageState extends State<VaultPage> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFBEF263).withOpacity(0.2),
+                        color: const Color(0xFFBEF263).withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
@@ -440,16 +444,30 @@ class _VaultPageState extends State<VaultPage> {
                     Icons.chat_bubble_outline,
                     'Chats',
                     false,
-                    () => Navigator.pop(context),
+                    () => Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ChatListPage(),
+                      ),
+                    ),
                   ),
-                  _buildNavIcon(Icons.call_outlined, 'Calls', false, () {}),
+                  _buildNavIcon(Icons.call_outlined, 'Calls', false, () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CallsPage(),
+                      ),
+                    );
+                  }),
                   _buildNavIcon(Icons.shield, 'Vault', true, () {}),
-                  _buildNavIcon(
-                    Icons.settings_outlined,
-                    'Settings',
-                    false,
-                    () {},
-                  ),
+                  _buildNavIcon(Icons.settings_outlined, 'Settings', false, () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsPage(),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -464,7 +482,7 @@ class _VaultPageState extends State<VaultPage> {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B).withOpacity(0.5),
+        color: const Color(0xFF1E293B).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFF1E293B)),
       ),
@@ -512,7 +530,7 @@ class _VaultPageState extends State<VaultPage> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFFBEF263).withOpacity(0.1),
+                color: const Color(0xFFBEF263).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(Icons.vpn_key, color: Color(0xFFBEF263)),

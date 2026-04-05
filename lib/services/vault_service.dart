@@ -22,16 +22,12 @@ class VaultService {
     // 1. Get or generate a vault encryption key
     // This key is used by Isar to encrypt the entire database file
     String? vaultKeyBase64 = await _secureStorage.readRaw('vault_db_key');
-    List<int> encryptionKey;
 
     if (vaultKeyBase64 == null) {
       // Generate a new 32-byte key for Isar encryption
       final key = await _encryptionService.generateRandomBytes(32);
       vaultKeyBase64 = base64Encode(key);
       await _secureStorage.writeRaw('vault_db_key', vaultKeyBase64);
-      encryptionKey = key;
-    } else {
-      encryptionKey = base64Decode(vaultKeyBase64);
     }
 
     // 2. Open Isar with encryption

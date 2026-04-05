@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'login_page.dart';
 import 'services/auth_service.dart';
 import 'services/secure_storage_service.dart';
@@ -62,7 +62,7 @@ class _SignupPageState extends State<SignupPage> {
     setState(() => _isLoading = true);
 
     try {
-      await _authService.signUp(email: email, password: password);
+      final result = await _authService.signUp(email: email, password: password);
 
       // Save credentials for biometrics
       await _secureStorage.saveCredentials(email, password);
@@ -70,20 +70,23 @@ class _SignupPageState extends State<SignupPage> {
       // Generate E2EE identity keys
       await _encryptionService.initIdentityKeys();
 
-      // Sync Public Key to Supabase
+      // Sync Public Key to AWS
       final pubKey = await _encryptionService.getPublicKey();
-      final user = _authService.currentUser;
+      final user = await _authService.currentUser;
       if (pubKey != null && user != null) {
-        await _profileService.updatePublicKey(user.id, pubKey);
+        await _profileService.updatePublicKey(user.userId, pubKey);
       }
 
       if (mounted) {
+        String message = 'Account created!';
+        if (!result.isSignUpComplete) {
+          message += ' Please check your email to verify.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Account created! Please check your email to verify.',
-            ),
-            backgroundColor: Color(0xFFBEF263),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: const Color(0xFFBEF263),
           ),
         );
         Navigator.pushReplacement(
@@ -244,7 +247,7 @@ class _SignupPageState extends State<SignupPage> {
                                 style: TextStyle(
                                   color: const Color(
                                     0xFF64748B,
-                                  ).withOpacity(0.8),
+                                  ).withValues(alpha: 0.8),
                                   fontSize: 12,
                                 ),
                               ),
@@ -267,7 +270,7 @@ class _SignupPageState extends State<SignupPage> {
                             elevation: 10,
                             shadowColor: const Color(
                               0xFFBEF263,
-                            ).withOpacity(0.2),
+                            ).withValues(alpha: 0.2),
                           ),
                           child: _isLoading
                               ? const CircularProgressIndicator(
@@ -309,9 +312,11 @@ class _SignupPageState extends State<SignupPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1C2211).withOpacity(0.4),
+        color: const Color(0xFF1C2211).withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFBEF263).withOpacity(0.1)),
+        border: Border.all(
+          color: const Color(0xFFBEF263).withValues(alpha: 0.1),
+        ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -324,11 +329,11 @@ class _SignupPageState extends State<SignupPage> {
             decoration: InputDecoration(
               hintText: hintText,
               hintStyle: TextStyle(
-                color: const Color(0xFF94A3B8).withOpacity(0.6),
+                color: const Color(0xFF94A3B8).withValues(alpha: 0.6),
               ),
               prefixIcon: Icon(
                 icon,
-                color: const Color(0xFFBEF263).withOpacity(0.8),
+                color: const Color(0xFFBEF263).withValues(alpha: 0.8),
               ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(

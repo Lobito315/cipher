@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'chat_list_page.dart';
+import 'vault_page.dart';
+import 'calls_page.dart';
+import 'settings_page.dart';
 
 class PrivacyPage extends StatefulWidget {
   const PrivacyPage({super.key});
@@ -18,7 +22,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF1B2210), // background-dark
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1B2210).withOpacity(0.8),
+        backgroundColor: const Color(0xFF1B2210).withValues(alpha: 0.8),
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -136,7 +140,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                       decoration: BoxDecoration(
                         color: const Color(
                           0xFF1B2210,
-                        ).withOpacity(0.5), // bg-background-dark/50
+                        ).withValues(alpha: 0.5), // bg-background-dark/50
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: const Color(0xFF3A4823),
@@ -176,7 +180,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(
                                 0xFFBEF263,
-                              ).withOpacity(0.2), // primary/20
+                              ).withValues(alpha: 0.2), // primary/20
                               foregroundColor: const Color(
                                 0xFFBEF263,
                               ), // text-primary
@@ -242,7 +246,9 @@ class _PrivacyPageState extends State<PrivacyPage> {
                           subtitle: 'Hide online status and typing indicators',
                           icon: Icons.visibility_off,
                           iconColor: const Color(0xFFBEF263),
-                          iconBgColor: const Color(0xFFBEF263).withOpacity(0.1),
+                          iconBgColor: const Color(
+                            0xFFBEF263,
+                          ).withValues(alpha: 0.1),
                           value: _ghostMode,
                           onChanged: (val) => setState(() => _ghostMode = val),
                           showBorder: true,
@@ -252,7 +258,9 @@ class _PrivacyPageState extends State<PrivacyPage> {
                           subtitle: 'Mask message content on lock screen',
                           icon: Icons.notifications_paused,
                           iconColor: const Color(0xFF38BDF8),
-                          iconBgColor: const Color(0xFF38BDF8).withOpacity(0.1),
+                          iconBgColor: const Color(
+                            0xFF38BDF8,
+                          ).withValues(alpha: 0.1),
                           value: _stealthNotifications,
                           onChanged: (val) =>
                               setState(() => _stealthNotifications = val),
@@ -265,7 +273,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                           iconColor: const Color(0xFFCBD5E1), // text-slate-300
                           iconBgColor: const Color(
                             0xFF334155,
-                          ).withOpacity(0.5), // bg-slate-700/50
+                          ).withValues(alpha: 0.5), // bg-slate-700/50
                           value: _appLock,
                           onChanged: (val) => setState(() => _appLock = val),
                           showBorder: true,
@@ -275,7 +283,9 @@ class _PrivacyPageState extends State<PrivacyPage> {
                           subtitle: 'Erase all messages after 24 hours',
                           icon: Icons.auto_delete,
                           iconColor: const Color(0xFFBEF263),
-                          iconBgColor: const Color(0xFFBEF263).withOpacity(0.1),
+                          iconBgColor: const Color(
+                            0xFFBEF263,
+                          ).withValues(alpha: 0.1),
                           value: _autoDelete,
                           onChanged: (val) => setState(() => _autoDelete = val),
                           showBorder: false,
@@ -365,9 +375,9 @@ class _PrivacyPageState extends State<PrivacyPage> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1), // red-500/10
+                  color: Colors.red.withValues(alpha: 0.1), // red-500/10
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.red.withOpacity(0.2)),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   children: [
@@ -385,7 +395,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.red[400]?.withOpacity(0.8),
+                        color: Colors.red[400]?.withValues(alpha: 0.8),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -428,12 +438,30 @@ class _PrivacyPageState extends State<PrivacyPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem('Chats', Icons.chat_bubble, false, () {
-              Navigator.pop(context); // Go back to chat list
+            _buildNavItem('Chats', Icons.chat_bubble_outline, false, () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const ChatListPage()),
+              );
             }),
-            _buildNavItem('Calls', Icons.call, false, () {}),
-            _buildNavItem('Privacy', Icons.shield, true, () {}),
-            _buildNavItem('Settings', Icons.settings, false, () {}),
+            _buildNavItem('Calls', Icons.call_outlined, false, () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const CallsPage()),
+              );
+            }),
+            _buildNavItem('Vault', Icons.key_outlined, false, () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const VaultPage()),
+              );
+            }),
+            _buildNavItem('Settings', Icons.settings, false, () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              );
+            }),
           ],
         ),
       ),
@@ -493,7 +521,9 @@ class _PrivacyPageState extends State<PrivacyPage> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF1B2210), // background-dark for icon
+            activeThumbColor: const Color(
+              0xFF1B2210,
+            ), // background-dark for icon
             activeTrackColor: const Color(0xFFBEF263), // primary
             inactiveThumbColor: const Color(0xFF94A3B8),
             inactiveTrackColor: const Color(0xFF334155),

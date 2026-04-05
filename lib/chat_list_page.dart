@@ -1,11 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'chat_detail_page.dart';
-import 'privacy_page.dart';
 import 'vault_page.dart';
+import 'calls_page.dart';
+import 'settings_page.dart';
 import 'services/profile_service.dart';
 import 'services/chat_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/auth_service.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:intl/intl.dart';
 
 class ChatListPage extends StatefulWidget {
@@ -18,6 +20,7 @@ class ChatListPage extends StatefulWidget {
 class _ChatListPageState extends State<ChatListPage> {
   final _profileService = ProfileService();
   final _chatService = ChatService();
+  final _authService = AuthService();
 
   String _formatTime(DateTime time) {
     final now = DateTime.now();
@@ -78,7 +81,7 @@ class _ChatListPageState extends State<ChatListPage> {
                   MaterialPageRoute(
                     builder: (context) => ChatDetailPage(
                       receiverId: profile['id'],
-                      receiverName: profile['email'] ?? 'Secure Contact',
+                      receiverName: profile['username'] ?? profile['email'] ?? 'Secure Contact',
                     ),
                   ),
                 );
@@ -107,7 +110,7 @@ class _ChatListPageState extends State<ChatListPage> {
       appBar: AppBar(
         backgroundColor: const Color(
           0xFF1B2210,
-        ).withOpacity(0.8), // background-dark/80
+        ).withValues(alpha: 0.8), // background-dark/80
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -202,7 +205,9 @@ class _ChatListPageState extends State<ChatListPage> {
                           decoration: InputDecoration(
                             hintText: 'Search secure threads',
                             hintStyle: TextStyle(
-                              color: const Color(0xFFBEF263).withOpacity(0.4),
+                              color: const Color(
+                                0xFFBEF263,
+                              ).withValues(alpha: 0.4),
                             ),
                             border: InputBorder.none,
                             isDense: true,
@@ -241,61 +246,70 @@ class _ChatListPageState extends State<ChatListPage> {
           ),
         ),
       ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _chatService.getChatListStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: FutureBuilder<AuthUser?>(
+        future: _authService.currentUser,
+        builder: (context, userSnapshot) {
+          if (userSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final chats = snapshot.data ?? [];
-          if (chats.isEmpty) {
-            return const Center(
-              child: Text(
-                'No secure conversations yet.\nTap + to start one.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white24),
-              ),
-            );
-          }
+          final myId = userSnapshot.data?.userId;
 
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: chats.length,
-            itemBuilder: (context, index) {
-              final chat = chats[index];
-              final myId = Supabase.instance.client.auth.currentUser?.id;
-              final otherId = chat['sender_id'] == myId
-                  ? chat['receiver_id']
-                  : chat['sender_id'];
+          return StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _chatService.getChatListStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final chats = snapshot.data ?? [];
+              if (chats.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'No secure conversations yet.\nTap + to start one.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white24),
+                  ),
+                );
+              }
 
-              return FutureBuilder<Map<String, dynamic>?>(
-                future: _profileService.searchUser(otherId),
-                builder: (context, profSnapshot) {
-                  final profile = profSnapshot.data;
-                  final name = profile?['email'] ?? 'Secure Contact';
-                  final time =
-                      DateTime.tryParse(chat['created_at'])?.toLocal() ??
-                      DateTime.now();
-                  final displayTime = _formatTime(time);
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: chats.length,
+                itemBuilder: (context, index) {
+                  final chat = chats[index];
+                  final otherId = chat['sender_id'] == myId
+                      ? chat['receiver_id']
+                      : chat['sender_id'];
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatDetailPage(
-                            receiverId: otherId,
-                            receiverName: name,
-                          ),
+                  return FutureBuilder<Map<String, dynamic>?>(
+                    future: _profileService.searchUser(otherId),
+                    builder: (context, profSnapshot) {
+                      final profile = profSnapshot.data;
+                      final name = profile?['email'] ?? 'Secure Contact';
+                      final time =
+                          DateTime.tryParse(chat['created_at'])?.toLocal() ??
+                          DateTime.now();
+                      final displayTime = _formatTime(time);
+
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatDetailPage(
+                                receiverId: otherId,
+                                receiverName: name,
+                              ),
+                            ),
+                          );
+                        },
+                        child: _buildChatListItem(
+                          name: name,
+                          time: displayTime,
+                          isEncrypted: true,
+                          message: 'Encrypted transmission',
                         ),
                       );
                     },
-                    child: _buildChatListItem(
-                      name: name,
-                      time: displayTime,
-                      isEncrypted: true,
-                      message: 'Encrypted transmission',
-                    ),
                   );
                 },
               );
@@ -326,17 +340,22 @@ class _ChatListPageState extends State<ChatListPage> {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _buildNavItem('Chats', Icons.chat_bubble, true, () {}),
-            _buildNavItem('Calls', Icons.call, false, () {}),
+            _buildNavItem('Calls', Icons.call, false, () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const CallsPage()),
+              );
+            }),
             _buildNavItem('Vault', Icons.key, false, () {
-              Navigator.push(
+              Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const VaultPage()),
               );
             }),
-            _buildNavItem('Privacy', Icons.shield, false, () {
-              Navigator.push(
+            _buildNavItem('Settings', Icons.settings, false, () {
+              Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const PrivacyPage()),
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
               );
             }),
           ],
@@ -533,13 +552,15 @@ class _ChatListPageState extends State<ChatListPage> {
                         Icon(
                           Icons.history_toggle_off,
                           size: 14,
-                          color: const Color(0xFFBEF263).withOpacity(0.6),
+                          color: const Color(0xFFBEF263).withValues(alpha: 0.6),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           message ?? '',
                           style: TextStyle(
-                            color: const Color(0xFFBEF263).withOpacity(0.6),
+                            color: const Color(
+                              0xFFBEF263,
+                            ).withValues(alpha: 0.6),
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                             fontStyle: FontStyle.italic,
@@ -602,7 +623,7 @@ class _ChatListPageState extends State<ChatListPage> {
             icon,
             color: isSelected
                 ? const Color(0xFFBEF263)
-                : const Color(0xFFBEF263).withOpacity(0.4),
+                : const Color(0xFFBEF263).withValues(alpha: 0.4),
           ),
           const SizedBox(height: 4),
           Text(
@@ -610,7 +631,7 @@ class _ChatListPageState extends State<ChatListPage> {
             style: TextStyle(
               color: isSelected
                   ? const Color(0xFFBEF263)
-                  : const Color(0xFFBEF263).withOpacity(0.4),
+                  : const Color(0xFFBEF263).withValues(alpha: 0.4),
               fontSize: 10,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
