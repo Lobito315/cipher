@@ -291,82 +291,198 @@ class _CallPageState extends State<CallPage> {
 
   Widget _buildDialPad() {
     return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
       child: Container(
-        color: Colors.black.withOpacity(0.8),
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 32),
-                onPressed: () => setState(() => _showDialPad = false),
+        color: Colors.black.withOpacity(0.85),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Top Bar with Close Button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white70, size: 28),
+                    onPressed: () => setState(() => _showDialPad = false),
+                  ),
+                ),
               ),
-            ),
-            const Spacer(),
-            Text(
-              _dialedNumbers,
-              style: const TextStyle(
-                color: Color(0xFFBEF263),
-                fontSize: 48,
-                fontWeight: FontWeight.w300,
-                letterSpacing: 8,
+              
+              const Spacer(flex: 1),
+              
+              // Dialed Numbers Display
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  _dialedNumbers.isEmpty ? " " : _dialedNumbers,
+                  style: const TextStyle(
+                    color: Color(0xFFBEF263),
+                    fontSize: 42,
+                    fontWeight: FontWeight.w200,
+                    letterSpacing: 4,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-            const SizedBox(height: 40),
-            Expanded(
-              flex: 4,
-              child: GridView.count(
-                crossAxisCount: 3,
-                mainAxisSpacing: 20,
-                crossAxisSpacing: 20,
-                childAspectRatio: 1,
+              
+              const SizedBox(height: 50),
+              
+              // Keypad Grid with constraints
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Column(
+                    children: [
+                      GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 1.1,
+                        children: [
+                          for (var i = 1; i <= 9; i++) _buildDialButton(i.toString()),
+                          _buildDialButton("*"),
+                          _buildDialButton("0"),
+                          _buildDialButton("#"),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      _buildActionButtons(),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 30),
+              
+              // Clear Button
+              if (_dialedNumbers.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () => setState(() => _dialedNumbers = ""),
+                  icon: const Icon(Icons.backspace_outlined, color: Colors.white54, size: 16),
+                  label: const Text(
+                    "CLEAR",
+                    style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 2),
+                  ),
+                ),
+              
+              const Spacer(flex: 2),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildDialActionButton(
+          icon: Icons.call,
+          color: const Color(0xFFBEF263),
+          textColor: const Color(0xFF1B2210),
+          label: "CALL",
+          onPressed: () {
+            // Logic for a new call or UI feedback
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Initiating call..."),
+                duration: Duration(seconds: 1),
+              ),
+            );
+          },
+        ),
+        _buildDialActionButton(
+          icon: Icons.call_end,
+          color: Colors.redAccent,
+          textColor: Colors.white,
+          label: "END",
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDialActionButton({
+    required IconData icon,
+    required Color color,
+    required Color textColor,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              height: 60,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: color.withOpacity(0.9),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  for (var i = 1; i <= 9; i++) _buildDialButton(i.toString()),
-                  _buildDialButton("*"),
-                  _buildDialButton("0"),
-                  _buildDialButton("#"),
+                  Icon(icon, color: textColor, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      letterSpacing: 1,
+                    ),
+                  ),
                 ],
               ),
             ),
-            if (_dialedNumbers.isNotEmpty)
-              TextButton(
-                onPressed: () => setState(() => _dialedNumbers = ""),
-                child: const Text(
-                  "CLEAR",
-                  style: TextStyle(color: Colors.redAccent, letterSpacing: 2),
-                ),
-              ),
-            const Spacer(),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildDialButton(String label) {
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _dialedNumbers += label;
-        });
-        // Optional: play sound or send DTMF
-      },
-      borderRadius: BorderRadius.circular(50),
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0x33BEF263), width: 1),
-          color: const Color(0xFF1B2210).withOpacity(0.5),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w400,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _dialedNumbers += label;
+          });
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0x22BEF263), width: 1),
+            color: const Color(0xFFBEF263).withOpacity(0.05),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.w300,
+              ),
             ),
           ),
         ),
@@ -380,16 +496,22 @@ class _CallPageState extends State<CallPage> {
     required VoidCallback onPressed,
     bool isLarge = false,
   }) {
-    return IconButton(
-      onPressed: onPressed,
-      iconSize: isLarge ? 40 : 28,
-      padding: EdgeInsets.all(isLarge ? 12 : 8),
-      constraints: const BoxConstraints(),
-      style: IconButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: IconButton(
+        onPressed: onPressed,
+        iconSize: isLarge ? 40 : 28,
+        padding: EdgeInsets.all(isLarge ? 12 : 8),
+        constraints: const BoxConstraints(),
+        style: IconButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(isLarge ? 20 : 15),
+          ),
+        ),
+        icon: Icon(icon),
       ),
-      icon: Icon(icon),
     );
   }
 }
