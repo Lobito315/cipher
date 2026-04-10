@@ -40,6 +40,10 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
+      try {
+        await _authService.signOut();
+      } catch (_) {} // Ignore errors if not currently signed in
+
       final result = await _authService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -51,14 +55,14 @@ class _LoginPageState extends State<LoginPage> {
         _passwordController.text.trim(),
       );
 
-      // Initialize E2EE Identity Keys if they don't exist
-      await _encryptionService.initIdentityKeys();
+      // Initialize E2EE Identity Keys (Deterministic from password)
+      await _encryptionService.initIdentityKeys(_passwordController.text.trim(), _emailController.text.trim());
 
       // Sync Public Key to AWS
       final pubKey = await _encryptionService.getPublicKey();
       final user = await _authService.currentUser;
       if (pubKey != null && user != null) {
-        await _profileService.updatePublicKey(user.userId, pubKey);
+        await _profileService.updatePublicKey(user.userId, pubKey, _emailController.text.trim());
       }
 
       if (mounted) {
@@ -67,8 +71,9 @@ class _LoginPageState extends State<LoginPage> {
             context,
             MaterialPageRoute(builder: (context) => const ChatListPage()),
           );
+        } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
+          _showConfirmationDialog(_emailController.text.trim());
         } else {
-          // Handle cases like nextStep being confirmSignUp, etc.
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Login Status: ${result.nextStep.signInStep}')),
           );
@@ -89,6 +94,54 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _showConfirmationDialog(String email) async {
+    final codeController = TextEditingController();
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1B2210),
+        title: const Text('Confirm Email', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: codeController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Enter 6-digit confirmation code',
+            hintStyle: TextStyle(color: Colors.white38),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFFBEF263))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFBEF263)),
+            onPressed: () async {
+              try {
+                final res = await Amplify.Auth.confirmSignUp(
+                  username: email,
+                  confirmationCode: codeController.text.trim(),
+                );
+                if (res.isSignUpComplete && context.mounted) {
+                  Navigator.pop(context);
+                  _login(); // Attempt login again
+                }
+              } catch (e) {
+                if (context.mounted) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     SnackBar(content: Text('Confirmation Error: $e'), backgroundColor: Colors.red),
+                   );
+                }
+              }
+            },
+            child: const Text('Confirm', style: TextStyle(color: Color(0xFF1B2210))),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loginWithBiometrics() async {
@@ -117,6 +170,9 @@ class _LoginPageState extends State<LoginPage> {
 
         if (email != null && password != null) {
           await _authService.signIn(email: email, password: password);
+          
+          // Re-initialize Identity Keys from stored password
+          await _encryptionService.initIdentityKeys(password, email);
           if (mounted) {
             Navigator.pushReplacement(
               context,

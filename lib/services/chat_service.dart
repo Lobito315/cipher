@@ -4,6 +4,7 @@ import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:cryptography/cryptography.dart';
 import 'encryption_service.dart';
 import 'profile_service.dart';
+import 'call_service.dart';
 
 class ChatService {
   final _encryptionService = EncryptionService();
@@ -38,7 +39,7 @@ class ChatService {
 
     // 3. Push to AWS Amplify (GraphQL Mutation)
     const operation = 'mutation CreateMessage(\$input: CreateMessageInput!) { '
-        'createMessage(input: \$input) { id } }';
+        'createMessage(input: \$input) { id senderId receiverId content createdAt } }';
     
     final request = GraphQLRequest<String>(
       document: operation,
@@ -93,8 +94,39 @@ class ChatService {
       return [];
     }
 
-    // Decrypt all messages logic would go here
-    return [];
+    try {
+      final decoded = jsonDecode(response.data!);
+      final items = (decoded['listMessages']['items'] as List).cast<Map<String, dynamic>>();
+      
+      // Sort oldest first
+      items.sort((a, b) => (a['createdAt'] as String).compareTo(b['createdAt'] as String));
+
+      SecretKey? secret = _sharedSecretCache[otherUserId];
+      if (secret == null) {
+        final remotePubKey = await _profileService.getPublicKey(otherUserId);
+        if (remotePubKey != null) {
+          secret = await _encryptionService.deriveSharedSecret(remotePubKey);
+          _sharedSecretCache[otherUserId] = secret;
+        }
+      }
+
+      for (var msg in items) {
+        if (secret != null) {
+          try {
+            msg['content'] = await _encryptionService.decryptMessage(msg['content'] as String, secret);
+            msg['content_decrypted'] = true;
+          } catch (e) {
+            msg['content'] = "[Decryption Error]";
+          }
+        } else {
+          msg['content'] = "[Missing Key]";
+        }
+      }
+      return items;
+    } catch (e) {
+      print('Error parsing messages: \$e');
+      return [];
+    }
   }
 
   /// Real-time stream of messages with on-the-fly decryption
@@ -132,43 +164,228 @@ class ChatService {
 
   /// Gets a stream of unique chat partners for the current user
   Stream<List<Map<String, dynamic>>> getChatListStream() {
-    return const Stream.empty();
+    final controller = StreamController<List<Map<String, dynamic>>>();
+    
+    // Internal state to track latest messages for each contact
+    final Map<String, Map<String, dynamic>> latestMessagesMap = {};
+
+    Future<void> initialFetchAndSubscribe() async {
+      final user = await Amplify.Auth.getCurrentUser();
+      final myId = user.userId;
+
+      // 1. Initial Query
+      const queryDoc = 'query ListAllMyMessages(\$filter: ModelMessageFilterInput) { '
+          'listMessages(filter: \$filter) { items { id senderId receiverId content createdAt } } }';
+      
+      final queryRequest = GraphQLRequest<String>(
+        document: queryDoc,
+        variables: {
+          'filter': {
+            'or': [
+              {'senderId': {'eq': myId}},
+              {'receiverId': {'eq': myId}}
+            ]
+          }
+        },
+      );
+
+      try {
+        final response = await Amplify.API.query(request: queryRequest).response;
+        if (!response.hasErrors && response.data != null) {
+          final decoded = jsonDecode(response.data!);
+          final items = (decoded['listMessages']['items'] as List).cast<Map<String, dynamic>>();
+          
+          for (var msg in items) {
+            final content = msg['content'] as String;
+            // Skip internal contacts storage messages and call signals
+            if (!content.startsWith(CallService.signalPrefix) &&
+                !content.startsWith('__cipher_contacts_v1__')) {
+              _updateLatestMessage(msg, myId, latestMessagesMap);
+            }
+          }
+          controller.add(_sortChats(latestMessagesMap));
+        }
+      } catch (e) {
+        print('Error in initial chat list fetch: $e');
+      }
+
+      // 2. Subscribe to new messages
+      const subDoc = 'subscription OnCreateMessage { '
+          'onCreateMessage { id senderId receiverId content createdAt } }';
+      
+      final subRequest = GraphQLRequest<String>(document: subDoc);
+      final operation = Amplify.API.subscribe(
+        subRequest,
+        onEstablished: () => print('Chat List Subscription established'),
+      );
+
+      operation.listen((event) {
+        if (event.data != null) {
+          try {
+            final decoded = jsonDecode(event.data!);
+            final message = decoded['onCreateMessage'];
+            if (message != null) {
+              if (message['senderId'] == myId || message['receiverId'] == myId) {
+                final content = message['content'] as String;
+                if (!content.startsWith(CallService.signalPrefix) &&
+                    !content.startsWith('__cipher_contacts_v1__')) {
+                  _updateLatestMessage(message, myId, latestMessagesMap);
+                  controller.add(_sortChats(latestMessagesMap));
+                }
+              }
+            }
+          } catch (e) {
+            print('Error parsing message subscription: $e');
+          }
+        }
+      });
+    }
+
+    initialFetchAndSubscribe();
+    return controller.stream;
+  }
+
+  void _updateLatestMessage(
+    Map<String, dynamic> msg,
+    String myId,
+    Map<String, Map<String, dynamic>> map,
+  ) {
+    final otherId = msg['senderId'] == myId ? msg['receiverId'] : msg['senderId'];
+    if (!map.containsKey(otherId)) {
+      map[otherId as String] = msg;
+    } else {
+      final currentAt = DateTime.parse(map[otherId]!['createdAt'] as String);
+      final newAt = DateTime.parse(msg['createdAt'] as String);
+      if (newAt.isAfter(currentAt)) {
+        map[otherId as String] = msg;
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> _sortChats(Map<String, Map<String, dynamic>> map) {
+    final list = map.values.map((msg) => {
+      'id': msg['id'],
+      'sender_id': msg['senderId'],
+      'receiver_id': msg['receiverId'],
+      'created_at': msg['createdAt'],
+      'content': msg['content'],
+    }).toList();
+    
+    list.sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
+    return list;
+  }
+
+  /// Real-time decrypted chat list
+  Stream<List<Map<String, dynamic>>> getDecryptedChatListStream() {
+    return getChatListStream().asyncMap((chats) async {
+      for (var chat in chats) {
+        final otherId = chat['sender_id'] == chat['receiver_id'] 
+            ? chat['sender_id'] // Should not happen in a real app but for robustness
+            : (chat['sender_id'] == (await Amplify.Auth.getCurrentUser()).userId 
+                ? chat['receiver_id'] 
+                : chat['sender_id']);
+
+        try {
+          SecretKey? secret = _sharedSecretCache[otherId];
+          if (secret == null) {
+            final remotePubKey = await _profileService.getPublicKey(otherId);
+            if (remotePubKey != null) {
+              secret = await _encryptionService.deriveSharedSecret(remotePubKey);
+              _sharedSecretCache[otherId] = secret;
+            }
+          }
+
+          if (secret != null) {
+            chat['content'] = await _encryptionService.decryptMessage(
+              chat['content'],
+              secret,
+            );
+            chat['is_decrypted'] = true;
+          }
+        } catch (e) {
+          chat['content'] = "[Encrypted]";
+          chat['is_decrypted'] = false;
+        }
+      }
+      return chats;
+    });
   }
 
   /// Real-time stream of messages for a specific conversation
   Stream<List<Map<String, dynamic>>> getMessagesStream(String otherUserId) {
-    const subscriptionDocument = 'subscription OnCreateMessage { '
-        'onCreateMessage { id senderId receiverId content createdAt } }';
-    
-    final subscriptionRequest = GraphQLRequest<String>(
-      document: subscriptionDocument,
-    );
-
-    final operation = Amplify.API.subscribe(
-      subscriptionRequest,
-      onEstablished: () => print('Subscription established'),
-    );
-
     final controller = StreamController<List<Map<String, dynamic>>>();
     final List<Map<String, dynamic>> accumulatedMessages = [];
 
-    operation.listen((event) {
-      if (event.data != null) {
-        try {
-          final decoded = jsonDecode(event.data!);
-          final message = decoded['onCreateMessage'];
-          if (message != null) {
-            if (message['senderId'] == otherUserId || message['receiverId'] == otherUserId) {
-              accumulatedMessages.add(message);
-              controller.add(List.from(accumulatedMessages));
-            }
-          }
-        } catch (e) {
-          print('Error parsing subscription event: \$e');
-        }
-      }
-    });
+    Future<void> run() async {
+      final user = await Amplify.Auth.getCurrentUser();
+      final myId = user.userId;
 
+      // 1. Fetch historical messages
+      final historical = await getMessages(otherUserId);
+      accumulatedMessages.addAll(historical);
+      controller.add(List.from(accumulatedMessages));
+
+      // 2. Subscribe to new messages
+      const subscriptionDocument = 'subscription OnCreateMessage { '
+          'onCreateMessage { id senderId receiverId content createdAt } }';
+      
+      final subscriptionRequest = GraphQLRequest<String>(
+        document: subscriptionDocument,
+      );
+
+      final operation = Amplify.API.subscribe(
+        subscriptionRequest,
+        onEstablished: () => print('Message Subscription established for $otherUserId'),
+      );
+
+      operation.listen((event) {
+        if (event.data != null) {
+          try {
+            final decoded = jsonDecode(event.data!);
+            final message = decoded['onCreateMessage'];
+            if (message != null) {
+              // Only add if it belongs to THIS conversation
+              final isFromOther = message['senderId'] == otherUserId && message['receiverId'] == myId;
+              final isFromMe = message['senderId'] == myId && message['receiverId'] == otherUserId;
+              
+              if (isFromOther || isFromMe) {
+                final content = message['content'] as String;
+                if (!content.startsWith(CallService.signalPrefix) &&
+                    !content.startsWith('__cipher_contacts_v1__')) {
+                  if (!accumulatedMessages.any((m) => m['id'] == message['id'])) {
+                    accumulatedMessages.add(message);
+                    accumulatedMessages.sort((a, b) => (a['createdAt'] as String).compareTo(b['createdAt'] as String));
+                    controller.add(List.from(accumulatedMessages));
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            print('Error parsing subscription event: $e');
+          }
+        }
+      });
+    }
+
+    run();
     return controller.stream;
+  }
+
+  /// Deletes a message for both users
+  Future<void> deleteMessage(String messageId) async {
+    const operation = 'mutation DeleteMessage(\$input: DeleteMessageInput!) { '
+        'deleteMessage(input: \$input) { id } }';
+    
+    final request = GraphQLRequest<String>(
+      document: operation,
+      variables: {
+        'input': { 'id': messageId }
+      },
+    );
+
+    final response = await Amplify.API.mutate(request: request).response;
+    if (response.hasErrors) {
+      throw Exception('Failed to delete message: ${response.errors}');
+    }
   }
 }

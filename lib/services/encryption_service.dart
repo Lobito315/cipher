@@ -10,20 +10,29 @@ class EncryptionService {
   static const String _keyPrivateKey = 'cipher_identity_private_key';
   static const String _keyPublicKey = 'cipher_identity_public_key';
 
-  /// Ensures the user has an identity key pair. Generates one if missing.
-  Future<void> initIdentityKeys() async {
-    // Keys are stored in secure storage as base64
-    final storedPriv = await _secureStorage.readRaw(_keyPrivateKey);
-
-    if (storedPriv == null) {
-      final keyPair = await _x25519.newKeyPair();
-      final privBytes = await keyPair.extractPrivateKeyBytes();
-      final pubKey = await keyPair.extractPublicKey();
-      final pubBytes = pubKey.bytes;
-
-      await _secureStorage.writeRaw(_keyPrivateKey, base64Encode(privBytes));
-      await _secureStorage.writeRaw(_keyPublicKey, base64Encode(pubBytes));
-    }
+  /// Ensures the user has an identity key pair. Derived deterministically from Master Password.
+  Future<void> initIdentityKeys(String password, String email) async {
+    // We derive a deterministic seed for the identity keys using the master password and email (as salt)
+    final pbkdf2 = Pbkdf2(
+      macAlgorithm: Hmac.sha256(),
+      iterations: 50000,
+      bits: 256,
+    );
+    
+    // Custom salt to differentiate from vault key
+    final salt = utf8.encode("cipher_identity_v1_$email");
+    final secretKey = await pbkdf2.deriveKey(
+      secretKey: SecretKey(utf8.encode(password)),
+      nonce: salt,
+    );
+    
+    final seed = await secretKey.extractBytes();
+    final keyPair = await _x25519.newKeyPairFromSeed(seed);
+    final privBytes = await keyPair.extractPrivateKeyBytes();
+    final pubKey = await keyPair.extractPublicKey();
+    
+    await _secureStorage.writeRaw(_keyPrivateKey, base64Encode(privBytes));
+    await _secureStorage.writeRaw(_keyPublicKey, base64Encode(pubKey.bytes));
   }
 
   Future<String?> getPublicKey() async {
@@ -80,6 +89,20 @@ class EncryptionService {
     return bits.sublist(0, length);
     // Note: Cryptography package doesn't have a direct 'randomBytes' but creating a new keypair
     // and taking its private bytes is a standard way to get secure entropy.
+  }
+
+  /// Derives a 256-bit vault key from a Master Password
+  Future<List<int>> deriveVaultKey(String masterPassword, String salt) async {
+    final pbkdf2 = Pbkdf2(
+      macAlgorithm: Hmac.sha256(),
+      iterations: 100000,
+      bits: 256,
+    );
+    final secretKey = await pbkdf2.deriveKey(
+      secretKey: SecretKey(utf8.encode(masterPassword)),
+      nonce: utf8.encode(salt),
+    );
+    return await secretKey.extractBytes();
   }
 
   /// Low-level encryption for local storage (using a simple derived key)

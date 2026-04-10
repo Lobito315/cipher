@@ -7,7 +7,7 @@ allprojects {
     }
 }
 
-rootProject.layout.buildDirectory.value(rootProject.layout.buildDirectory.dir("../../build").get())
+rootProject.layout.buildDirectory.set(file("C:/CipherBuild"))
 
 subprojects {
     project.layout.buildDirectory.value(rootProject.layout.buildDirectory.dir(project.name))

@@ -1,20 +1,41 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'chat_list_page.dart';
 import 'vault_page.dart';
 import 'calls_page.dart';
+import 'contacts_page.dart';
 import 'login_page.dart';
 import 'privacy_page.dart';
+import 'profile_page.dart';
 import 'services/auth_service.dart';
+import 'services/profile_service.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final authService = AuthService();
+  State<SettingsPage> createState() => _SettingsPageState();
+}
 
+class _SettingsPageState extends State<SettingsPage> {
+  final _authService = AuthService();
+  final _profileService = ProfileService();
+
+  Future<Map<String, dynamic>> _loadUserData() async {
+    final user = await _authService.currentUser;
+    if (user == null) return {};
+    
+    final profile = await _profileService.getFullProfile(user.userId);
+    return {
+      'uuid': user.userId,
+      'email': user.username,
+      'displayName': profile?['username'],
+    };
+  }
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1B2210), // background-dark
       appBar: AppBar(
@@ -39,24 +60,32 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
       ),
-      body: FutureBuilder<AuthUser?>(
-        future: authService.currentUser,
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _loadUserData(),
         builder: (context, snapshot) {
-          final user = snapshot.data;
-          final userEmail = user?.username ?? 'Secure User';
+          final data = snapshot.data ?? {};
+          final uuid = data['uuid'] as String? ?? '';
+          final email = data['email'] as String? ?? 'Secure User';
+          final displayName = data['displayName'] as String?;
 
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               // Profile Section
-              _buildProfileCard(userEmail),
+              _buildProfileCard(context, email, uuid, displayName),
               const SizedBox(height: 24),
 
               _buildSectionHeader('ACCOUNT'),
               _buildSettingItem(
                 'Profile Information',
                 Icons.person_outline,
-                onTap: () {},
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ProfilePage()),
+                  );
+                  if (result == true) setState(() {});
+                },
               ),
               _buildSettingItem(
                 'Privacy & Security',
@@ -115,7 +144,7 @@ class SettingsPage extends StatelessWidget {
                 Icons.logout,
                 iconColor: Colors.redAccent,
                 onTap: () async {
-                  await authService.signOut();
+                  await _authService.signOut();
                   if (context.mounted) {
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(builder: (context) => const LoginPage()),
@@ -150,6 +179,18 @@ class SettingsPage extends StatelessWidget {
                 );
               },
             ),
+            _buildNavItem(
+              context,
+              'Contacts',
+              Icons.people_alt_outlined,
+              false,
+              () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ContactsPage()),
+                );
+              },
+            ),
             _buildNavItem(context, 'Calls', Icons.call_outlined, false, () {
               Navigator.pushReplacement(
                 context,
@@ -169,10 +210,10 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileCard(String email) {
-    String displayName = email;
-    if (email.contains('@')) {
-      displayName = email.split('@')[0];
+  Widget _buildProfileCard(BuildContext context, String email, String uuid, String? displayName) {
+    String name = displayName ?? email;
+    if (name.contains('@') && displayName == null) {
+      name = name.split('@')[0];
     }
 
     return Container(
@@ -182,46 +223,104 @@ class SettingsPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFF3A4823)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: const BoxDecoration(
-              color: Color(0x33BEF263),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person, color: Color(0xFFBEF263), size: 30),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    color: Color(0xFFF1F5F9),
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+          Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: const BoxDecoration(
+                  color: Color(0x33BEF263),
+                  shape: BoxShape.circle,
                 ),
-                Text(
-                  email,
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 14,
-                  ),
+                child: const Icon(Icons.person, color: Color(0xFFBEF263), size: 30),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Color(0xFFF1F5F9),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      'ACTIVE IDENTITY verified',
+                      style: TextStyle(
+                        color: Color(0xFFBEF263),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, color: Color(0xFFBEF263)),
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ProfilePage()),
+                  );
+                  if (result == true) setState(() {});
+                },
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, color: Color(0xFFBEF263)),
-            onPressed: () {},
-          ),
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white10),
+          const SizedBox(height: 12),
+          _buildCopyableId("Cipher ID (Email)", email),
+          const SizedBox(height: 12),
+          _buildCopyableId("Technical ID (UUID)", uuid),
         ],
       ),
+    );
+  }
+
+  Widget _buildCopyableId(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                value,
+                style: const TextStyle(color: Color(0xFFBEF263), fontSize: 13, fontFamily: 'monospace'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.content_copy, size: 16, color: Color(0xFFBEF263)),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: value));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Copied $label to clipboard'),
+                    duration: const Duration(seconds: 1),
+                    backgroundColor: const Color(0xFFBEF263),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ],
     );
   }
 

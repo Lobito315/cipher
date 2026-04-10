@@ -1,0 +1,68 @@
+{
+  "providers": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-cipher-dev-90c15-authRole",
+      "UnauthRoleArn": "arn:aws:iam::090899138535:role/amplify-cipher-dev-90c15-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::090899138535:role/amplify-cipher-dev-90c15-authRole",
+      "Region": "us-east-2",
+      "DeploymentBucketName": "amplify-cipher-dev-90c15-deployment",
+      "UnauthRoleName": "amplify-cipher-dev-90c15-unauthRole",
+      "StackName": "amplify-cipher-dev-90c15",
+      "StackId": "arn:aws:cloudformation:us-east-2:090899138535:stack/amplify-cipher-dev-90c15/4324e380-30de-11f1-ac1d-065757201c97",
+      "AmplifyAppId": "d3minxrcrxfndf"
+    }
+  },
+  "api": {
+    "cipher": {
+      "dependsOn": [],
+      "output": {
+        "authConfig": {
+          "additionalAuthenticationProviders": [],
+          "defaultAuthentication": {
+            "apiKeyConfig": {
+              "apiKeyExpirationDays": 7
+            },
+            "authenticationType": "API_KEY"
+          }
+        }
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "AppSync"
+    }
+  },
+  "auth": {
+    "cipherb49ba192": {
+      "customAuth": false,
+      "dependsOn": [],
+      "frontendAuthConfig": {
+        "mfaConfiguration": "OFF",
+        "mfaTypes": [
+          "SMS"
+        ],
+        "passwordProtectionSettings": {
+          "passwordPolicyCharacters": [],
+          "passwordPolicyMinLength": 8
+        },
+        "signupAttributes": [
+          "EMAIL"
+        ],
+        "socialProviders": [],
+        "usernameAttributes": [
+          "EMAIL"
+        ],
+        "verificationMechanisms": [
+          "EMAIL"
+        ]
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "Cognito"
+    }
+  },
+  "storage": {
+    "s3920d34c6": {
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "S3"
+    }
+  }
+}

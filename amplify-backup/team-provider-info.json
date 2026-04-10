@@ -1,0 +1,23 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-cipher-dev-90c15-authRole",
+      "UnauthRoleArn": "arn:aws:iam::090899138535:role/amplify-cipher-dev-90c15-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::090899138535:role/amplify-cipher-dev-90c15-authRole",
+      "Region": "us-east-2",
+      "DeploymentBucketName": "amplify-cipher-dev-90c15-deployment",
+      "UnauthRoleName": "amplify-cipher-dev-90c15-unauthRole",
+      "StackName": "amplify-cipher-dev-90c15",
+      "StackId": "arn:aws:cloudformation:us-east-2:090899138535:stack/amplify-cipher-dev-90c15/4324e380-30de-11f1-ac1d-065757201c97",
+      "AmplifyAppId": "d3minxrcrxfndf"
+    },
+    "categories": {
+      "auth": {
+        "cipherb49ba192": {}
+      },
+      "api": {
+        "cipher": {}
+      }
+    }
+  }
+}

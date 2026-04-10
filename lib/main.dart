@@ -5,6 +5,11 @@ import 'package:amplify_flutter/amplify_flutter.dart';
 import 'amplifyconfiguration.dart';
 import 'login_page.dart';
 
+import 'package:provider/provider.dart';
+import 'providers/privacy_provider.dart';
+import 'providers/call_provider.dart';
+import 'components/incoming_call_overlay.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('DEBUG: Widgets initialized');
@@ -12,7 +17,15 @@ void main() async {
   await _configureAmplify();
 
   print('DEBUG: Starting runApp');
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => PrivacyProvider()),
+        ChangeNotifierProvider(create: (_) => CallProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 Future<void> _configureAmplify() async {
@@ -44,6 +57,18 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const LoginPage(),
+      builder: (context, child) {
+        // Initialize CallProvider listener when app starts
+        // (It will re-init internally if already initialized)
+        Provider.of<CallProvider>(context, listen: false).init();
+        
+        return Stack(
+          children: [
+            if (child != null) child,
+            const IncomingCallOverlay(),
+          ],
+        );
+      },
     );
   }
 }

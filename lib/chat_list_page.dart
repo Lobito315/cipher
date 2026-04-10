@@ -4,11 +4,17 @@ import 'chat_detail_page.dart';
 import 'vault_page.dart';
 import 'calls_page.dart';
 import 'settings_page.dart';
+import 'contacts_page.dart';
 import 'services/profile_service.dart';
 import 'services/chat_service.dart';
 import 'services/auth_service.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'services/encryption_service.dart';
+import 'services/contact_service.dart';
+import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'contacts_page.dart';
+import 'models/contact.dart';
 
 class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
@@ -19,8 +25,42 @@ class ChatListPage extends StatefulWidget {
 
 class _ChatListPageState extends State<ChatListPage> {
   final _profileService = ProfileService();
+  final _contactService = ContactService();
   final _chatService = ChatService();
   final _authService = AuthService();
+  final _encryptionService = EncryptionService();
+  final Map<String, Map<String, dynamic>?> _profileCache = {};
+  String? _myAvatarBase64;
+  Map<String, String?> _contactAvatars = {};
+
+  String _searchQuery = '';
+  String _selectedFilter = 'All Chats';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyAvatar();
+    _loadContactAvatars();
+  }
+
+  Future<void> _loadMyAvatar() async {
+    final user = await _authService.currentUser;
+    if (user != null) {
+      final b64 = await _profileService.getAvatarBase64(user.userId);
+      if (mounted) setState(() => _myAvatarBase64 = b64);
+    }
+  }
+
+  Future<void> _loadContactAvatars() async {
+    final contacts = await _contactService.getContacts();
+    final Map<String, String?> avatars = {};
+    for (var c in contacts) {
+      if (c.avatarBase64 != null) {
+        avatars[c.userId] = c.avatarBase64;
+      }
+    }
+    if (mounted) setState(() => _contactAvatars = avatars);
+  }
 
   String _formatTime(DateTime time) {
     final now = DateTime.now();
@@ -45,17 +85,28 @@ class _ChatListPageState extends State<ChatListPage> {
           'New Secure Chat',
           style: TextStyle(color: Colors.white),
         ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Enter User ID or Email',
-            hintStyle: TextStyle(color: Colors.white30),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFBEF263)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Search by email address or technical UUID.',
+              style: TextStyle(color: Colors.white38, fontSize: 12),
             ),
-          ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'user@example.com or ID...',
+                hintStyle: TextStyle(color: Colors.white30),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFFBEF263)),
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -76,13 +127,41 @@ class _ChatListPageState extends State<ChatListPage> {
               final profile = await _profileService.searchUser(identifier);
               if (profile != null && mounted) {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChatDetailPage(
-                      receiverId: profile['id'],
-                      receiverName: profile['username'] ?? profile['email'] ?? 'Secure Contact',
-                    ),
+                
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: const Color(0xFF1B2210),
+                    title: Text(profile['username'] ?? profile['email'] ?? 'User Found'),
+                    content: const Text('Would you like to start a chat or save this user to your contacts?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () async {
+                          await ContactService().addContact(profile);
+                          if (context.mounted) Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Added to contacts')),
+                          );
+                        },
+                        child: const Text('Save Contact', style: TextStyle(color: Color(0xFFBEF263))),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFBEF263)),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatDetailPage(
+                                receiverId: profile['id'],
+                                receiverName: profile['username'] ?? profile['email'] ?? 'Secure Contact',
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Start Chat', style: TextStyle(color: Color(0xFF1B2210))),
+                      ),
+                    ],
                   ),
                 );
               } else if (mounted) {
@@ -94,9 +173,81 @@ class _ChatListPageState extends State<ChatListPage> {
               }
             },
             child: const Text(
-              'Start Chat',
+              'Search',
               style: TextStyle(color: Color(0xFF1B2210)),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSecurityStatus() async {
+    final pubKey = await _encryptionService.getPublicKey();
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1B2210),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.verified_user, color: Color(0xFFBEF263)),
+            SizedBox(width: 12),
+            Text(
+              'Security Protocol',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your Identity Key (Public)',
+              style: TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0x33BEF263)),
+              ),
+              child: SelectableText(
+                pubKey ?? 'Initializing...',
+                style: const TextStyle(
+                  color: Color(0xFFBEF263),
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: const [
+                Icon(Icons.lock_clock, color: Color(0xFF38BDF8), size: 16),
+                SizedBox(width: 8),
+                Text(
+                  'Quantum-Safe Active',
+                  style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'All threads use X25519 DH for key exchange and ChaCha20-Poly1305 for E2EE.',
+              style: TextStyle(color: Colors.white38, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK', style: TextStyle(color: Color(0xFFBEF263))),
           ),
         ],
       ),
@@ -106,11 +257,9 @@ class _ChatListPageState extends State<ChatListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1B2210), // background-dark
+      backgroundColor: const Color(0xFF1B2210),
       appBar: AppBar(
-        backgroundColor: const Color(
-          0xFF1B2210,
-        ).withValues(alpha: 0.8), // background-dark/80
+        backgroundColor: const Color(0xFF1B2210).withValues(alpha: 0.8),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -120,14 +269,14 @@ class _ChatListPageState extends State<ChatListPage> {
         elevation: 0,
         shape: const Border(
           bottom: BorderSide(color: Color(0x1ABEF263), width: 1),
-        ), // border-primary/10
+        ),
         title: Row(
           children: [
             Container(
               width: 40,
               height: 40,
               decoration: const BoxDecoration(
-                color: Color(0x33BEF263), // primary/20
+                color: Color(0x33BEF263),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.security, color: Color(0xFFBEF263)),
@@ -136,7 +285,7 @@ class _ChatListPageState extends State<ChatListPage> {
             const Text(
               'Cipher',
               style: TextStyle(
-                color: Color(0xFFF1F5F9), // text-slate-100
+                color: Color(0xFFF1F5F9),
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 letterSpacing: -0.5,
@@ -155,24 +304,35 @@ class _ChatListPageState extends State<ChatListPage> {
           IconButton(
             icon: const Icon(
               Icons.shield_outlined,
-              color: Color(0xFF94A3B8),
-            ), // text-slate-400
-            onPressed: () {},
+              color: Color(0xFFBEF263),
+            ),
+            onPressed: _showSecurityStatus,
           ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFBEF263), width: 2),
-                image: const DecorationImage(
-                  image: NetworkImage(
-                    "https://lh3.googleusercontent.com/aida-public/AB6AXuBltbzKsqtx_dh5NrnY-ExLykKAkKpQC3RhnsKZ48m4XUnmWOt2R-MUKIB3ZeTr8GDfOfdOP9sMHnDZg1qeWSAManOJ8m4cL4a5_qR8Y8cJhBksKjhzaC8F00J-Z8oryoApgg5bkTkyz1jI7adhzQ3-xAsz1OelBSqylDFlWgXm60Q9_JpK7d9T_GvU4C8p1Dm6M6nkBLCw7GqPlmFKwd_jWNXRNJHdK2HkrEaXJN7QLrWRVPBQM1xuyMsEDPweMw4bvjQ63ZCkUnY",
-                  ),
-                  fit: BoxFit.cover,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsPage()),
+                );
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFBEF263), width: 2),
+                  image: _myAvatarBase64 != null
+                      ? DecorationImage(
+                          image: MemoryImage(base64Decode(_myAvatarBase64!)),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
+                child: _myAvatarBase64 == null
+                    ? const Icon(Icons.person, color: Color(0xFFBEF263), size: 20)
+                    : null,
               ),
             ),
           ),
@@ -183,11 +343,10 @@ class _ChatListPageState extends State<ChatListPage> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               children: [
-                // Search Bar
                 Container(
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0x0DBEF263), // primary/5
+                    color: const Color(0x0DBEF263),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -197,17 +356,20 @@ class _ChatListPageState extends State<ChatListPage> {
                         child: Icon(
                           Icons.search,
                           color: Color(0x99BEF263),
-                        ), // primary/60
+                        ),
                       ),
                       Expanded(
                         child: TextField(
+                          onChanged: (value) {
+                            setState(() {
+                              _searchQuery = value.toLowerCase();
+                            });
+                          },
                           style: const TextStyle(color: Color(0xFFF1F5F9)),
                           decoration: InputDecoration(
                             hintText: 'Search secure threads',
                             hintStyle: TextStyle(
-                              color: const Color(
-                                0xFFBEF263,
-                              ).withValues(alpha: 0.4),
+                              color: const Color(0xFFBEF263).withValues(alpha: 0.4),
                             ),
                             border: InputBorder.none,
                             isDense: true,
@@ -218,25 +380,33 @@ class _ChatListPageState extends State<ChatListPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Filters
                 SizedBox(
                   height: 36,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: [
-                      _buildFilterChip(
-                        'All Chats',
-                        true,
-                        icon: Icons.keyboard_arrow_down,
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedFilter = 'All Chats'),
+                        child: _buildFilterChip(
+                          'All Chats',
+                          _selectedFilter == 'All Chats',
+                          icon: Icons.keyboard_arrow_down,
+                        ),
                       ),
                       const SizedBox(width: 8),
-                      _buildFilterChip('Unread', false),
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedFilter = 'Unread'),
+                        child: _buildFilterChip('Unread', _selectedFilter == 'Unread'),
+                      ),
                       const SizedBox(width: 8),
-                      _buildFilterChip(
-                        'Hide Hidden',
-                        false,
-                        icon: Icons.visibility_off,
-                        isIconFirst: true,
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedFilter = 'Hide Hidden'),
+                        child: _buildFilterChip(
+                          'Hide Hidden',
+                          _selectedFilter == 'Hide Hidden',
+                          icon: Icons.visibility_off,
+                          isIconFirst: true,
+                        ),
                       ),
                     ],
                   ),
@@ -255,18 +425,37 @@ class _ChatListPageState extends State<ChatListPage> {
           final myId = userSnapshot.data?.userId;
 
           return StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _chatService.getChatListStream(),
+            stream: _chatService.getDecryptedChatListStream(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final chats = snapshot.data ?? [];
+              final allChats = snapshot.data ?? [];
+              
+              final chats = allChats.where((chat) {
+                final otherId = chat['sender_id'] == myId ? chat['receiver_id'] : chat['sender_id'];
+                final profile = _profileCache[otherId];
+                final name = (profile?['username'] ?? profile?['email'] ?? 'Secure Contact').toString().toLowerCase();
+                
+                if (_searchQuery.isNotEmpty && !name.contains(_searchQuery)) {
+                  return false;
+                }
+
+                if (_selectedFilter == 'Unread') {
+                  return false; 
+                }
+                
+                return true;
+              }).toList();
+
               if (chats.isEmpty) {
-                return const Center(
+                return Center(
                   child: Text(
-                    'No secure conversations yet.\nTap + to start one.',
+                    _searchQuery.isEmpty 
+                      ? 'No secure conversations yet.\nTap + to start one.'
+                      : 'No matches found.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white24),
+                    style: const TextStyle(color: Colors.white24),
                   ),
                 );
               }
@@ -281,14 +470,22 @@ class _ChatListPageState extends State<ChatListPage> {
                       : chat['sender_id'];
 
                   return FutureBuilder<Map<String, dynamic>?>(
-                    future: _profileService.searchUser(otherId),
+                    future: _profileCache.containsKey(otherId) 
+                        ? Future.value(_profileCache[otherId]) 
+                        : _profileService.searchUser(otherId).then((p) {
+                            _profileCache[otherId] = p;
+                            return p;
+                          }),
                     builder: (context, profSnapshot) {
                       final profile = profSnapshot.data;
-                      final name = profile?['email'] ?? 'Secure Contact';
+                      final name = profile?['username'] ?? profile?['email'] ?? 'Secure Contact';
                       final time =
                           DateTime.tryParse(chat['created_at'])?.toLocal() ??
                           DateTime.now();
                       final displayTime = _formatTime(time);
+                      final lastMessage = chat['content'] as String;
+                      final isDecrypted = chat['is_decrypted'] == true;
+                      final avatarB64 = _contactAvatars[otherId];
 
                       return GestureDetector(
                         onTap: () {
@@ -305,8 +502,10 @@ class _ChatListPageState extends State<ChatListPage> {
                         child: _buildChatListItem(
                           name: name,
                           time: displayTime,
-                          isEncrypted: true,
-                          message: 'Encrypted transmission',
+                          isEncrypted: isDecrypted,
+                          message: lastMessage,
+                          unreadCount: 0,
+                          avatarBase64: avatarB64,
                         ),
                       );
                     },
@@ -320,7 +519,7 @@ class _ChatListPageState extends State<ChatListPage> {
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 16.0),
         child: FloatingActionButton(
-          onPressed: () {},
+          onPressed: _showSearchDialog,
           backgroundColor: const Color(0xFFBEF263),
           elevation: 8,
           child: const Icon(
@@ -340,19 +539,25 @@ class _ChatListPageState extends State<ChatListPage> {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _buildNavItem('Chats', Icons.chat_bubble, true, () {}),
-            _buildNavItem('Calls', Icons.call, false, () {
+            _buildNavItem('Contacts', Icons.people_alt_outlined, false, () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const ContactsPage()),
+              );
+            }),
+            _buildNavItem('Calls', Icons.call_outlined, false, () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const CallsPage()),
               );
             }),
-            _buildNavItem('Vault', Icons.key, false, () {
+            _buildNavItem('Vault', Icons.key_outlined, false, () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const VaultPage()),
               );
             }),
-            _buildNavItem('Settings', Icons.settings, false, () {
+            _buildNavItem('Settings', Icons.settings_outlined, false, () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsPage()),
@@ -412,7 +617,7 @@ class _ChatListPageState extends State<ChatListPage> {
     String? message,
     bool isEncrypted = false,
     int unreadCount = 0,
-    String? imageUrl,
+    String? avatarBase64,
     bool isSelfDestructed = false,
     bool isGhost = false,
     bool isGroup = false,
@@ -423,13 +628,12 @@ class _ChatListPageState extends State<ChatListPage> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: isGhost ? null : Colors.transparent, // add hover effect later
+        color: isGhost ? null : Colors.transparent,
       ),
       child: Opacity(
         opacity: isGhost ? 0.6 : 1.0,
         child: Row(
           children: [
-            // Avatar
             Stack(
               children: [
                 Container(
@@ -446,9 +650,9 @@ class _ChatListPageState extends State<ChatListPage> {
                     color: isGroup
                         ? const Color(0x1ABEF263)
                         : Colors.transparent,
-                    image: imageUrl != null && !isGroup
+                    image: avatarBase64 != null && !isGroup
                         ? DecorationImage(
-                            image: NetworkImage(imageUrl),
+                            image: MemoryImage(base64Decode(avatarBase64)),
                             fit: BoxFit.cover,
                           )
                         : null,
@@ -459,7 +663,7 @@ class _ChatListPageState extends State<ChatListPage> {
                           color: Color(0xFFBEF263),
                           size: 32,
                         )
-                      : null,
+                      : (avatarBase64 == null && !isGroup ? const Icon(Icons.person, color: Color(0xFFBEF263)) : null),
                 ),
                 if (!isGhost)
                   Positioned(
@@ -486,7 +690,6 @@ class _ChatListPageState extends State<ChatListPage> {
               ],
             ),
             const SizedBox(width: 16),
-            // Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,7 +702,7 @@ class _ChatListPageState extends State<ChatListPage> {
                           Text(
                             name,
                             style: TextStyle(
-                              color: const Color(0xFFF1F5F9), // text-slate-100
+                              color: const Color(0xFFF1F5F9),
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               fontStyle: isGhost

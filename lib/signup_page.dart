@@ -67,14 +67,14 @@ class _SignupPageState extends State<SignupPage> {
       // Save credentials for biometrics
       await _secureStorage.saveCredentials(email, password);
 
-      // Generate E2EE identity keys
-      await _encryptionService.initIdentityKeys();
+      // Generate E2EE identity keys (Deterministic from password)
+      await _encryptionService.initIdentityKeys(password, email);
 
       // Sync Public Key to AWS
       final pubKey = await _encryptionService.getPublicKey();
       final user = await _authService.currentUser;
       if (pubKey != null && user != null) {
-        await _profileService.updatePublicKey(user.userId, pubKey);
+        await _profileService.updatePublicKey(user.userId, pubKey, email);
       }
 
       if (mounted) {
