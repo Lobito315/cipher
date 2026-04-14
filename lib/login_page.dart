@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'signup_page.dart';
+import 'verification_page.dart';
 import 'chat_list_page.dart';
 import 'services/auth_service.dart';
 import 'services/local_auth_service.dart';
@@ -22,14 +23,14 @@ class _LoginPageState extends State<LoginPage> {
   final _secureStorage = SecureStorageService();
   final _encryptionService = EncryptionService();
   final _profileService = ProfileService();
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController(text: '+1');
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -45,34 +46,41 @@ class _LoginPageState extends State<LoginPage> {
       } catch (_) {} // Ignore errors if not currently signed in
 
       final result = await _authService.signIn(
-        email: _emailController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
       // Save credentials for future biometric login
       await _secureStorage.saveCredentials(
-        _emailController.text.trim(),
+        _phoneController.text.trim(),
         _passwordController.text.trim(),
       );
 
       // Initialize E2EE Identity Keys (Deterministic from password)
-      await _encryptionService.initIdentityKeys(_passwordController.text.trim(), _emailController.text.trim());
-
-      // Sync Public Key to AWS
-      final pubKey = await _encryptionService.getPublicKey();
       final user = await _authService.currentUser;
-      if (pubKey != null && user != null) {
-        await _profileService.updatePublicKey(user.userId, pubKey, _emailController.text.trim());
+      if (user != null) {
+        await _encryptionService.initIdentityKeys(_passwordController.text.trim(), _phoneController.text.trim(), user.userId);
+        
+        // Sync Public Key to AWS
+        final pubKey = await _encryptionService.getPublicKey(user.userId);
+        await _profileService.updatePublicKey(user.userId, pubKey!, _phoneController.text.trim());
       }
 
       if (mounted) {
         if (result.isSignedIn) {
+          // Sign-in successful, go to home page
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const ChatListPage()),
           );
         } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
-          _showConfirmationDialog(_emailController.text.trim());
+          // User exists but is not confirmed yet
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VerificationPage(phoneNumber: _phoneController.text.trim()),
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Login Status: ${result.nextStep.signInStep}')),
@@ -96,53 +104,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _showConfirmationDialog(String email) async {
-    final codeController = TextEditingController();
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1B2210),
-        title: const Text('Confirm Email', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: codeController,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Enter 6-digit confirmation code',
-            hintStyle: TextStyle(color: Colors.white38),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFFBEF263))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFBEF263)),
-            onPressed: () async {
-              try {
-                final res = await Amplify.Auth.confirmSignUp(
-                  username: email,
-                  confirmationCode: codeController.text.trim(),
-                );
-                if (res.isSignUpComplete && context.mounted) {
-                  Navigator.pop(context);
-                  _login(); // Attempt login again
-                }
-              } catch (e) {
-                if (context.mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     SnackBar(content: Text('Confirmation Error: $e'), backgroundColor: Colors.red),
-                   );
-                }
-              }
-            },
-            child: const Text('Confirm', style: TextStyle(color: Color(0xFF1B2210))),
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _loginWithBiometrics() async {
     final hasStored = await _secureStorage.hasCredentials();
@@ -165,14 +126,18 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _isLoading = true);
       try {
         final creds = await _secureStorage.getCredentials();
-        final email = creds['email'];
+        final phone = creds['email']; // We reuse the 'email' key in secure storage for simplicity or could refactor
         final password = creds['password'];
 
-        if (email != null && password != null) {
-          await _authService.signIn(email: email, password: password);
+        if (phone != null && password != null) {
+          final res = await _authService.signIn(phoneNumber: phone, password: password);
+          final user = await _authService.currentUser;
           
-          // Re-initialize Identity Keys from stored password
-          await _encryptionService.initIdentityKeys(password, email);
+          if (user != null) {
+            // Re-initialize Identity Keys from stored password
+            await _encryptionService.initIdentityKeys(password, phone, user.userId);
+          }
+          
           if (mounted) {
             Navigator.pushReplacement(
               context,
@@ -414,10 +379,11 @@ class _LoginPageState extends State<LoginPage> {
                               children: [
                                 // Input fields
                                 TextFormField(
-                                  controller: _emailController,
+                                  controller: _phoneController,
+                                  keyboardType: TextInputType.phone,
                                   style: const TextStyle(color: Colors.white),
                                   decoration: InputDecoration(
-                                    hintText: 'Cipher ID or Email',
+                                    hintText: 'Phone Number (e.g., +1)',
                                     hintStyle: const TextStyle(
                                       color: Color(0xFF3A4823),
                                     ),
@@ -448,7 +414,7 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                   ),
                                   validator: (val) =>
-                                      val!.isEmpty ? 'Enter email' : null,
+                                      val!.isEmpty ? 'Enter phone number' : null,
                                 ),
                                 const SizedBox(height: 12),
                                 TextFormField(

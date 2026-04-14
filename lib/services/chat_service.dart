@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:amplify_api/amplify_api.dart';
 import 'package:cryptography/cryptography.dart';
 import 'encryption_service.dart';
 import 'profile_service.dart';
@@ -27,7 +28,7 @@ class ChatService {
       final remotePubKey = await _profileService.getPublicKey(receiverId);
       if (remotePubKey == null) throw Exception("Receiver has no public key");
 
-      sharedSecret = await _encryptionService.deriveSharedSecret(remotePubKey);
+      sharedSecret = await _encryptionService.deriveSharedSecret(remotePubKey, senderId);
       _sharedSecretCache[receiverId] = sharedSecret;
     }
 
@@ -51,6 +52,7 @@ class ChatService {
           'createdAt': DateTime.now().toUtc().toIso8601String(),
         }
       },
+      authorizationMode: APIAuthorizationType.apiKey,
     );
 
     final response = await Amplify.API.mutate(request: request).response;
@@ -87,6 +89,7 @@ class ChatService {
           ]
         }
       },
+      authorizationMode: APIAuthorizationType.apiKey,
     );
 
     final response = await Amplify.API.query(request: request).response;
@@ -105,7 +108,7 @@ class ChatService {
       if (secret == null) {
         final remotePubKey = await _profileService.getPublicKey(otherUserId);
         if (remotePubKey != null) {
-          secret = await _encryptionService.deriveSharedSecret(remotePubKey);
+          secret = await _encryptionService.deriveSharedSecret(remotePubKey, myId);
           _sharedSecretCache[otherUserId] = secret;
         }
       }
@@ -142,7 +145,8 @@ class ChatService {
           if (secret == null) {
             final remotePubKey = await _profileService.getPublicKey(otherUserId);
             if (remotePubKey != null) {
-              secret = await _encryptionService.deriveSharedSecret(remotePubKey);
+              final user = await Amplify.Auth.getCurrentUser();
+              secret = await _encryptionService.deriveSharedSecret(remotePubKey, user.userId);
               _sharedSecretCache[otherUserId] = secret;
             }
           }
@@ -158,7 +162,8 @@ class ChatService {
           msg['content'] = "[Decryption Error]";
         }
       }
-      return messages;
+      // Filter out messages that failed to decrypt
+      return messages.where((m) => m['content'] != "[Decryption Error]" && m['content'] != "[Missing Key]").toList();
     });
   }
 
@@ -187,6 +192,7 @@ class ChatService {
             ]
           }
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
 
       try {
@@ -213,7 +219,7 @@ class ChatService {
       const subDoc = 'subscription OnCreateMessage { '
           'onCreateMessage { id senderId receiverId content createdAt } }';
       
-      final subRequest = GraphQLRequest<String>(document: subDoc);
+      final subRequest = GraphQLRequest<String>(document: subDoc, authorizationMode: APIAuthorizationType.apiKey);
       final operation = Amplify.API.subscribe(
         subRequest,
         onEstablished: () => print('Chat List Subscription established'),
@@ -290,7 +296,8 @@ class ChatService {
           if (secret == null) {
             final remotePubKey = await _profileService.getPublicKey(otherId);
             if (remotePubKey != null) {
-              secret = await _encryptionService.deriveSharedSecret(remotePubKey);
+              final user = await Amplify.Auth.getCurrentUser();
+              secret = await _encryptionService.deriveSharedSecret(remotePubKey, user.userId);
               _sharedSecretCache[otherId] = secret;
             }
           }
@@ -331,6 +338,7 @@ class ChatService {
       
       final subscriptionRequest = GraphQLRequest<String>(
         document: subscriptionDocument,
+        authorizationMode: APIAuthorizationType.apiKey,
       );
 
       final operation = Amplify.API.subscribe(
@@ -381,6 +389,7 @@ class ChatService {
       variables: {
         'input': { 'id': messageId }
       },
+      authorizationMode: APIAuthorizationType.apiKey,
     );
 
     final response = await Amplify.API.mutate(request: request).response;

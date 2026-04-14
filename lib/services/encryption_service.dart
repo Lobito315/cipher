@@ -7,11 +7,11 @@ class EncryptionService {
   final _x25519 = X25519();
   final _chacha = Chacha20.poly1305Aead();
 
-  static const String _keyPrivateKey = 'cipher_identity_private_key';
-  static const String _keyPublicKey = 'cipher_identity_public_key';
+  static String _getPrivateKeyPath(String userId) => 'cipher_identity_private_key_$userId';
+  static String _getPublicKeyPath(String userId) => 'cipher_identity_public_key_$userId';
 
   /// Ensures the user has an identity key pair. Derived deterministically from Master Password.
-  Future<void> initIdentityKeys(String password, String email) async {
+  Future<void> initIdentityKeys(String password, String email, String userId) async {
     // We derive a deterministic seed for the identity keys using the master password and email (as salt)
     final pbkdf2 = Pbkdf2(
       macAlgorithm: Hmac.sha256(),
@@ -31,17 +31,17 @@ class EncryptionService {
     final privBytes = await keyPair.extractPrivateKeyBytes();
     final pubKey = await keyPair.extractPublicKey();
     
-    await _secureStorage.writeRaw(_keyPrivateKey, base64Encode(privBytes));
-    await _secureStorage.writeRaw(_keyPublicKey, base64Encode(pubKey.bytes));
+    await _secureStorage.writeRaw(_getPrivateKeyPath(userId), base64Encode(privBytes));
+    await _secureStorage.writeRaw(_getPublicKeyPath(userId), base64Encode(pubKey.bytes));
   }
 
-  Future<String?> getPublicKey() async {
-    return await _secureStorage.readRaw(_keyPublicKey);
+  Future<String?> getPublicKey(String userId) async {
+    return await _secureStorage.readRaw(_getPublicKeyPath(userId));
   }
 
   /// Derives a shared secret using Diffie-Hellman with another user's public key
-  Future<SecretKey> deriveSharedSecret(String remotePublicKeyBase64) async {
-    final privBase64 = await _secureStorage.readRaw(_keyPrivateKey);
+  Future<SecretKey> deriveSharedSecret(String remotePublicKeyBase64, String myUserId) async {
+    final privBase64 = await _secureStorage.readRaw(_getPrivateKeyPath(myUserId));
     if (privBase64 == null) throw Exception("Identity keys not initialized");
 
     final privBytes = base64Decode(privBase64);

@@ -10,6 +10,7 @@ import 'services/call_service.dart';
 import 'services/profile_service.dart';
 import 'services/contact_service.dart';
 import 'models/contact.dart';
+import 'package:amplify_flutter/amplify_flutter.dart' as amplify;
 
 class ChatDetailPage extends StatefulWidget {
   final String receiverId;
@@ -224,10 +225,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 icon: const Icon(Icons.call_outlined, color: Color(0xFFBEF263)),
                 onPressed: () async {
                   final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
+                  // Get caller's display name from their profile
+                  final user = await amplify.Amplify.Auth.getCurrentUser();
+                  final myProfile = await _profileService.getFullProfile(user.userId);
+                  final callerName = myProfile?['username'] ?? user.username;
                   await _callService.startCall(
                     receiverId: widget.receiverId,
                     receiverName: widget.receiverName,
                     channelId: channelId,
+                    callerName: callerName,
                     isAudioOnly: true,
                   );
                   if (mounted) {
@@ -248,10 +254,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 icon: const Icon(Icons.videocam_outlined, color: Color(0xFFBEF263)),
                 onPressed: () async {
                   final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
+                  final user = await amplify.Amplify.Auth.getCurrentUser();
+                  final myProfile = await _profileService.getFullProfile(user.userId);
+                  final callerName = myProfile?['username'] ?? user.username;
                   await _callService.startCall(
                     receiverId: widget.receiverId,
                     receiverName: widget.receiverName,
                     channelId: channelId,
+                    callerName: callerName,
                     isAudioOnly: false,
                   );
                   if (mounted) {
@@ -486,9 +496,7 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
-        mainAxisAlignment: isMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) ...[
@@ -514,6 +522,8 @@ class _MessageBubble extends StatelessWidget {
                   : null,
             ),
             const SizedBox(width: 8),
+          ] else ...[
+            const SizedBox(width: 40), // Placeholder to keep alignment (32px icon + 8px space)
           ],
           Flexible(
             child: GestureDetector(

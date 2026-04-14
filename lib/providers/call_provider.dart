@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:amplify_api/amplify_api.dart';
 import '../services/call_service.dart';
 
 class CallProvider extends ChangeNotifier {
@@ -18,7 +19,7 @@ class CallProvider extends ChangeNotifier {
   String? get channelId => _channelId;
 
   void init() async {
-    if (_subscription != null) return;
+    if (_subscription != null) return; // Already subscribed
 
     final user = await Amplify.Auth.getCurrentUser();
     final myId = user.userId;
@@ -26,7 +27,7 @@ class CallProvider extends ChangeNotifier {
     const subDoc = 'subscription OnCreateMessage { '
         'onCreateMessage { id senderId receiverId content createdAt } }';
     
-    final subRequest = GraphQLRequest<String>(document: subDoc);
+    final subRequest = GraphQLRequest<String>(document: subDoc, authorizationMode: APIAuthorizationType.apiKey);
     
     _subscription = Amplify.API.subscribe(subRequest).listen((event) {
       if (event.data != null) {
@@ -85,6 +86,18 @@ class CallProvider extends ChangeNotifier {
   }
 
   void rejectCall() {
+    _isIncomingCall = false;
+    _isAudioOnly = false;
+    _callerId = null;
+    _callerName = null;
+    _channelId = null;
+    notifyListeners();
+  }
+
+  /// Call this on sign out so that init() can be called afresh on next login
+  Future<void> reset() async {
+    await _subscription?.cancel();
+    _subscription = null;
     _isIncomingCall = false;
     _isAudioOnly = false;
     _callerId = null;

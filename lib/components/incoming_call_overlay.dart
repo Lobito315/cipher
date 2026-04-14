@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/call_provider.dart';
 import '../call_page.dart';
+import '../main.dart';
 
 class IncomingCallOverlay extends StatelessWidget {
   const IncomingCallOverlay({super.key});
@@ -88,10 +89,13 @@ class IncomingCallOverlay extends StatelessWidget {
                             iconColor: const Color(0xFF1B2210),
                             onTap: () {
                               callProvider.acceptCall(context, (channel, name, isAudioOnly) {
-                                Navigator.push(
-                                  context,
+                                // Use the global navigator key because this overlay
+                                // is rendered as a sibling of the Navigator (in
+                                // MaterialApp.builder), so context-based navigation
+                                // cannot reach the Navigator via ancestor lookup.
+                                MyApp.navigatorKey.currentState?.push(
                                   MaterialPageRoute(
-                                    builder: (context) => CallPage(
+                                    builder: (_) => CallPage(
                                       channelName: channel,
                                       remoteUserName: name,
                                       isAudioOnly: isAudioOnly,

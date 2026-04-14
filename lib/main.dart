@@ -47,6 +47,11 @@ Future<void> _configureAmplify() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  /// Global key so overlays rendered OUTSIDE the Navigator (e.g. in
+  /// MaterialApp.builder) can still push routes onto the correct navigator.
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -56,12 +61,9 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFBEF263)),
         useMaterial3: true,
       ),
+      navigatorKey: MyApp.navigatorKey,
       home: const LoginPage(),
       builder: (context, child) {
-        // Initialize CallProvider listener when app starts
-        // (It will re-init internally if already initialized)
-        Provider.of<CallProvider>(context, listen: false).init();
-        
         return Stack(
           children: [
             if (child != null) child,

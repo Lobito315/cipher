@@ -1,7 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:agora_rtc_engine/agora_rtc_engine.dart';
-import 'services/video_call_service.dart';
+import 'package:flutter/foundation.dart';
+
+// Conditional import: web gets the stub, native gets the real Agora service
+import 'services/video_call_service.dart'
+    if (dart.library.html) 'services/video_call_service_web.dart';
 
 class CallPage extends StatefulWidget {
   final String channelName;
@@ -19,74 +22,89 @@ class CallPage extends StatefulWidget {
   State<CallPage> createState() => _CallPageState();
 }
 
-class _CallPageState extends State<CallPage> {
-  final _videoCallService = VideoCallService();
-  int? _remoteUid;
-  int? _localUid;
-  bool _localUserJoined = false;
+class _CallPageState extends State<CallPage>
+    with SingleTickerProviderStateMixin {
   bool _muted = false;
-  bool _videoOff = false;
   bool _showDialPad = false;
-  String _dialedNumbers = "";
+  bool _connected = false;
+  String _statusText = 'Connecting...';
+  String _dialedNumbers = '';
+
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  final _callService = VideoCallService();
 
   @override
   void initState() {
     super.initState();
-    _videoOff = widget.isAudioOnly;
-    _initAgora();
-  }
 
-  Future<void> _initAgora() async {
-    await _videoCallService.initialize();
-    
-    _videoCallService.engine?.registerEventHandler(
-      RtcEngineEventHandler(
-        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-          debugPrint("Local user joined: ${connection.localUid}");
-          setState(() {
-            _localUid = connection.localUid;
-            _localUserJoined = true;
-          });
-        },
-        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          debugPrint("Remote user joined: $remoteUid");
-          setState(() {
-            _remoteUid = remoteUid;
-          });
-        },
-        onUserOffline: (RtcConnection connection, int remoteUid, UserOfflineReasonType reason) {
-          debugPrint("Remote user offline: $remoteUid");
-          setState(() {
-            _remoteUid = null;
-          });
-          // Optionally auto-hangup if peer leaves
-          Navigator.pop(context);
-        },
-      ),
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    await _videoCallService.joinChannel(widget.channelName, 0);
+    // Defer initialization to after the first frame — calling setState()
+    // from initState() directly throws an assertion in Flutter debug mode.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initCall();
+    });
+  }
+
+  Future<void> _initCall() async {
+    if (kIsWeb) {
+      // Web: Agora is not supported. Show "ringing" then "connected" UI.
+      // setState is safe here because we're past the first frame.
+      if (mounted) setState(() => _statusText = 'Ringing...');
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        setState(() {
+          _connected = true;
+          _statusText = 'Connected';
+        });
+        _pulseController.stop();
+        _pulseController.value = 1.0;
+      }
+      return;
+    }
+
+    // Native: use Agora
+    try {
+      await _callService.initialize();
+      await _callService.joinChannel(widget.channelName, 0);
+      if (mounted) {
+        setState(() {
+          _connected = true;
+          _statusText = 'Connected';
+        });
+        _pulseController.stop();
+        _pulseController.value = 1.0;
+      }
+    } catch (e) {
+      debugPrint('Call init error: $e');
+      if (mounted) setState(() => _statusText = 'Connection failed');
+    }
   }
 
   @override
   void dispose() {
-    _videoCallService.leaveChannel();
-    _videoCallService.dispose();
+    _pulseController.dispose();
+    if (!kIsWeb) {
+      _callService.leaveChannel();
+      _callService.dispose();
+    }
     super.dispose();
   }
 
   void _onToggleMute() {
-    setState(() {
-      _muted = !_muted;
-    });
-    _videoCallService.engine?.muteLocalAudioStream(_muted);
-  }
-
-  void _onToggleVideo() {
-    setState(() {
-      _videoOff = !_videoOff;
-    });
-    _videoCallService.engine?.muteLocalVideoStream(_videoOff);
+    setState(() => _muted = !_muted);
+    // Agora mute handled inside VideoCallService; guarded at runtime
+    try {
+      if (!kIsWeb) _callService.engine?.muteLocalAudioStream(_muted);
+    } catch (_) {}
   }
 
   @override
@@ -95,71 +113,51 @@ class _CallPageState extends State<CallPage> {
       backgroundColor: const Color(0xFF0A0C07),
       body: Stack(
         children: [
-          // Remote Video or Avatar
-          Center(
-            child: widget.isAudioOnly
-                ? _buildAudioCallUI()
-                : (_remoteUid != null
-                    ? AgoraVideoView(
-                        controller: VideoViewController.remote(
-                          rtcEngine: _videoCallService.engine!,
-                          canvas: VideoCanvas(uid: _remoteUid),
-                          connection: RtcConnection(channelId: widget.channelName),
-                        ),
-                      )
-                    : _buildWaitingState()),
-          ),
-
-          // Local Video (Preview) - Only show if not audio call
-          if (!widget.isAudioOnly)
-            Positioned(
-              top: 60,
-              right: 20,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  width: 120,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withAlpha(128),
-                    border: Border.all(color: const Color(0xFFBEF263), width: 1),
-                  ),
-                  child: _localUserJoined && !_videoOff
-                      ? AgoraVideoView(
-                          controller: VideoViewController(
-                            rtcEngine: _videoCallService.engine!,
-                            canvas: VideoCanvas(uid: _localUid ?? 0),
-                          ),
-                        )
-                      : const Center(child: Icon(Icons.person, color: Color(0xFFBEF263))),
+          // Background gradient
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.topCenter,
+                  radius: 1.5,
+                  colors: [
+                    const Color(0xFFBEF263).withOpacity(0.05),
+                    const Color(0xFF0A0C07),
+                  ],
                 ),
               ),
             ),
+          ),
 
-          // Header Info
+          // Main content
+          Center(child: _buildMainUI()),
+
+          // Header
           Positioned(
             top: 60,
             left: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  widget.remoteUserName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                const Row(children: [
+                  Icon(Icons.lock, color: Color(0xFFBEF263), size: 14),
+                  SizedBox(width: 4),
+                  Text('End-to-End Encrypted',
+                      style: TextStyle(color: Color(0xFFBEF263), fontSize: 12)),
+                ]),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-                const Row(
-                  children: [
-                    Icon(Icons.lock, color: Color(0xFFBEF263), size: 14),
-                    SizedBox(width: 4),
-                    Text(
-                      "End-to-End Encrypted",
-                      style: TextStyle(color: Color(0xFFBEF263), fontSize: 12),
-                    ),
-                  ],
+                  child: Text(
+                    _connected ? '🔴  Live' : '...',
+                    style:
+                        const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -167,350 +165,307 @@ class _CallPageState extends State<CallPage> {
 
           // Controls
           Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: _buildControls(),
-          ),
+              bottom: 40,
+              left: 0,
+              right: 0,
+              child: _buildControls()),
 
-          // Dial Pad Overlay
-          if (_showDialPad)
-            Positioned.fill(
-              child: _buildDialPad(),
-            ),
+          // Dial pad
+          if (_showDialPad) Positioned.fill(child: _buildDialPad()),
         ],
       ),
     );
   }
 
-  Widget _buildWaitingState() {
+  Widget _buildMainUI() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const CircularProgressIndicator(color: Color(0xFFBEF263)),
-        const SizedBox(height: 20),
-        Text(
-          "Waiting for ${widget.remoteUserName}...",
-          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 16),
+        // Pulsing avatar
+        AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) => Transform.scale(
+            scale: _connected ? 1.0 : _pulseAnimation.value,
+            child: child,
+          ),
+          child: Container(
+            width: 160,
+            height: 160,
+            decoration: BoxDecoration(
+              color: const Color(0xFFBEF263).withOpacity(0.1),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFFBEF263)
+                    .withOpacity(_connected ? 0.7 : 0.3),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFBEF263)
+                      .withOpacity(_connected ? 0.3 : 0.1),
+                  blurRadius: 40,
+                  spreadRadius: 10,
+                ),
+              ],
+            ),
+            child:
+                const Icon(Icons.person, size: 80, color: Color(0xFFBEF263)),
+          ),
         ),
+        const SizedBox(height: 32),
+
+        // Name
+        Text(
+          widget.remoteUserName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // Type badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFBEF263).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border:
+                Border.all(color: const Color(0xFFBEF263).withOpacity(0.3)),
+          ),
+          child: Text(
+            widget.isAudioOnly ? 'AUDIO CALL' : 'VIDEO CALL',
+            style: const TextStyle(
+              color: Color(0xFFBEF263),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 3,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Status
+        if (!_connected)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: const Color(0xFFBEF263).withOpacity(0.6),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(_statusText,
+                  style: const TextStyle(
+                      color: Color(0xFF94A3B8), fontSize: 14)),
+            ],
+          )
+        else
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                  color: Color(0xFFBEF263), shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
+            const Text('Connected',
+                style: TextStyle(
+                    color: Color(0xFFBEF263),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
+          ]),
+
+        // Web notice
+        if (kIsWeb) ...[
+          const SizedBox(height: 28),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 48),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.withOpacity(0.2)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.amber, size: 16),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Real-time audio requires the Cipher mobile app. This is a web preview.',
+                    style: TextStyle(color: Colors.amber, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildControls() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      margin: const EdgeInsets.symmetric(horizontal: 40),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 32),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B2210).withAlpha(153), // 0.6 opacity
-        borderRadius: BorderRadius.circular(30),
+        color: const Color(0xFF1B2210).withOpacity(0.88),
+        borderRadius: BorderRadius.circular(32),
         border: Border.all(color: const Color(0x33BEF263)),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(32),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-                _buildControlButton(
-                  icon: _muted ? Icons.mic_off : Icons.mic,
-                  color: _muted ? Colors.redAccent : Colors.white24,
-                  onPressed: _onToggleMute,
-                ),
-                _buildControlButton(
-                  icon: Icons.call_end,
-                  color: Colors.red,
-                  isLarge: true,
-                  onPressed: () => Navigator.pop(context),
-                ),
-                _buildControlButton(
-                  icon: _showDialPad ? Icons.keyboard_hide : Icons.dialpad,
-                  color: _showDialPad ? const Color(0xFFBEF263) : Colors.white24,
-                  onPressed: () {
-                    setState(() {
-                      _showDialPad = !_showDialPad;
-                    });
-                  },
-                ),
-                if (!widget.isAudioOnly)
-                  _buildControlButton(
-                    icon: _videoOff ? Icons.videocam_off : Icons.videocam,
-                    color: _videoOff ? Colors.redAccent : Colors.white24,
-                    onPressed: _onToggleVideo,
+              _buildCtrlBtn(
+                icon: _muted ? Icons.mic_off : Icons.mic,
+                label: _muted ? 'Unmute' : 'Mute',
+                color: _muted ? Colors.redAccent : Colors.white24,
+                onTap: _onToggleMute,
+              ),
+              Column(children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.red.withOpacity(0.4),
+                            blurRadius: 20,
+                            spreadRadius: 4)
+                      ],
+                    ),
+                    child: const Icon(Icons.call_end,
+                        color: Colors.white, size: 30),
                   ),
-              ],
-            ),
-          ),
-        ),
-      );
-  }
-
-  Widget _buildAudioCallUI() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 160,
-          height: 160,
-          decoration: BoxDecoration(
-            color: const Color(0xFFBEF263).withOpacity(0.1),
-            shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFBEF263), width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFBEF263).withOpacity(0.2),
-                blurRadius: 30,
-                spreadRadius: 10,
+                ),
+                const SizedBox(height: 8),
+                const Text('End',
+                    style: TextStyle(color: Colors.white54, fontSize: 11)),
+              ]),
+              _buildCtrlBtn(
+                icon: _showDialPad
+                    ? Icons.keyboard_hide
+                    : Icons.dialpad,
+                label: 'Keypad',
+                color:
+                    _showDialPad ? const Color(0xFFBEF263) : Colors.white24,
+                onTap: () =>
+                    setState(() => _showDialPad = !_showDialPad),
               ),
             ],
           ),
-          child: const Icon(
-            Icons.person,
-            size: 80,
-            color: Color(0xFFBEF263),
-          ),
         ),
-        const SizedBox(height: 40),
-        const Text(
-          "AUDIO CALL",
-          style: TextStyle(
-            color: Color(0xFFBEF263),
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 4,
-          ),
-        ),
-        if (_remoteUid == null) ...[
-          const SizedBox(height: 20),
-          _buildWaitingState(),
-        ],
-      ],
+      ),
     );
+  }
+
+  Widget _buildCtrlBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Column(children: [
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          child: Icon(icon, color: Colors.white, size: 24),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(label,
+          style: const TextStyle(color: Colors.white54, fontSize: 11)),
+    ]);
   }
 
   Widget _buildDialPad() {
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
       child: Container(
-        color: Colors.black.withOpacity(0.85),
+        color: Colors.black.withOpacity(0.88),
         child: SafeArea(
-          child: Column(
-            children: [
-              // Top Bar with Close Button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white70, size: 28),
-                    onPressed: () => setState(() => _showDialPad = false),
-                  ),
-                ),
-              ),
-              
-              const Spacer(flex: 1),
-              
-              // Dialed Numbers Display
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Text(
-                  _dialedNumbers.isEmpty ? " " : _dialedNumbers,
-                  style: const TextStyle(
-                    color: Color(0xFFBEF263),
-                    fontSize: 42,
-                    fontWeight: FontWeight.w200,
-                    letterSpacing: 4,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              
-              const SizedBox(height: 50),
-              
-              // Keypad Grid with constraints
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 320),
-                  child: Column(
-                    children: [
-                      GridView.count(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: 1.1,
-                        children: [
-                          for (var i = 1; i <= 9; i++) _buildDialButton(i.toString()),
-                          _buildDialButton("*"),
-                          _buildDialButton("0"),
-                          _buildDialButton("#"),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      _buildActionButtons(),
-                    ],
-                  ),
-                ),
-              ),
-              
-              const SizedBox(height: 30),
-              
-              // Clear Button
-              if (_dialedNumbers.isNotEmpty)
-                TextButton.icon(
-                  onPressed: () => setState(() => _dialedNumbers = ""),
-                  icon: const Icon(Icons.backspace_outlined, color: Colors.white54, size: 16),
-                  label: const Text(
-                    "CLEAR",
-                    style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 2),
-                  ),
-                ),
-              
-              const Spacer(flex: 2),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildDialActionButton(
-          icon: Icons.call,
-          color: const Color(0xFFBEF263),
-          textColor: const Color(0xFF1B2210),
-          label: "CALL",
-          onPressed: () {
-            // Logic for a new call or UI feedback
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Initiating call..."),
-                duration: Duration(seconds: 1),
-              ),
-            );
-          },
-        ),
-        _buildDialActionButton(
-          icon: Icons.call_end,
-          color: Colors.redAccent,
-          textColor: Colors.white,
-          label: "END",
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDialActionButton({
-    required IconData icon,
-    required Color color,
-    required Color textColor,
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: color.withOpacity(0.9),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: textColor, size: 24),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
+          child: Column(children: [
+            Align(
+              alignment: Alignment.topRight,
+              child: IconButton(
+                padding: const EdgeInsets.all(20),
+                icon: const Icon(Icons.close,
+                    color: Colors.white70, size: 28),
+                onPressed: () => setState(() => _showDialPad = false),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDialButton(String label) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _dialedNumbers += label;
-          });
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0x22BEF263), width: 1),
-            color: const Color(0xFFBEF263).withOpacity(0.05),
-          ),
-          child: Center(
-            child: Text(
-              label,
+            const Spacer(),
+            Text(
+              _dialedNumbers.isEmpty ? ' ' : _dialedNumbers,
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w300,
+                  color: Color(0xFFBEF263),
+                  fontSize: 42,
+                  fontWeight: FontWeight.w200,
+                  letterSpacing: 4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 40),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.3,
+                  children: [
+                    for (var i = 1; i <= 9; i++)
+                      _buildKey(i.toString()),
+                    _buildKey('*'),
+                    _buildKey('0'),
+                    _buildKey('#'),
+                  ],
+                ),
               ),
             ),
-          ),
+            const Spacer(flex: 2),
+          ]),
         ),
       ),
     );
   }
 
-  Widget _buildControlButton({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onPressed,
-    bool isLarge = false,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: IconButton(
-        onPressed: onPressed,
-        iconSize: isLarge ? 40 : 28,
-        padding: EdgeInsets.all(isLarge ? 12 : 8),
-        constraints: const BoxConstraints(),
-        style: IconButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(isLarge ? 20 : 15),
-          ),
+  Widget _buildKey(String label) {
+    return GestureDetector(
+      onTap: () => setState(() => _dialedNumbers += label),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFBEF263).withOpacity(0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0x22BEF263)),
         ),
-        icon: Icon(icon),
+        child: Center(
+          child: Text(label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w300)),
+        ),
       ),
     );
   }

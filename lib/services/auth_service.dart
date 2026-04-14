@@ -12,41 +12,69 @@ class AuthService {
 
   // Sign up
   Future<SignUpResult> signUp({
-    required String email,
+    required String phoneNumber,
+    required String cipherId,
     required String password,
   }) async {
     final userAttributes = {
-      AuthUserAttributeKey.email: email,
+      AuthUserAttributeKey.phoneNumber: phoneNumber,
+      AuthUserAttributeKey.preferredUsername: cipherId,
     };
     return await Amplify.Auth.signUp(
-      username: email,
+      username: phoneNumber,
       password: password,
       options: SignUpOptions(userAttributes: userAttributes),
     );
   }
 
+  // Confirm Sign up
+  Future<SignUpResult> confirmSignUp({
+    required String phoneNumber,
+    required String code,
+  }) async {
+    return await Amplify.Auth.confirmSignUp(
+      username: phoneNumber,
+      confirmationCode: code,
+    );
+  }
+
+  // Resend confirmation code
+  Future<ResendSignUpCodeResult> resendConfirmationCode(String phoneNumber) async {
+    return await Amplify.Auth.resendSignUpCode(username: phoneNumber);
+  }
+
   // Sign in
   Future<SignInResult> signIn({
-    required String email,
+    required String phoneNumber,
     required String password,
   }) async {
     final result = await Amplify.Auth.signIn(
-      username: email,
+      username: phoneNumber,
       password: password,
     );
     if (result.isSignedIn) {
-      await _initializeUserKeys(password, email);
+      await _initializeUserKeys(password, phoneNumber);
     }
     return result;
   }
 
-  Future<void> _initializeUserKeys(String password, String email) async {
+  Future<void> _initializeUserKeys(String password, String phoneNumber) async {
     try {
       final user = await Amplify.Auth.getCurrentUser();
-      await _encryptionService.initIdentityKeys(password, email);
-      final pubKey = await _encryptionService.getPublicKey();
+      final attributes = await Amplify.Auth.fetchUserAttributes();
+      
+      String cipherId = user.username; // Fallback to phone number if not found
+      try {
+        final attr = attributes.firstWhere(
+          (a) => a.userAttributeKey == AuthUserAttributeKey.preferredUsername,
+        );
+        cipherId = attr.value;
+      } catch (_) {}
+
+      await _encryptionService.initIdentityKeys(password, phoneNumber, user.userId);
+      final pubKey = await _encryptionService.getPublicKey(user.userId);
       if (pubKey != null) {
-        await _profileService.updatePublicKey(user.userId, pubKey, user.username);
+        await _profileService.updatePublicKey(user.userId, pubKey, cipherId);
       }
     } catch (e) {
       print('DEBUG: Error initializing user keys: $e');

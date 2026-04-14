@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/foundation.dart';
 import '../models/contact.dart';
 import 'secure_storage_service.dart';
@@ -161,6 +162,7 @@ class ContactService {
             ]
           }
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
 
       final response = await Amplify.API.query(request: request).response;
@@ -223,6 +225,7 @@ class ContactService {
             'createdAt': DateTime.now().toUtc().toIso8601String(),
           }
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
 
       final response = await Amplify.API.mutate(request: request).response;
@@ -255,6 +258,7 @@ class ContactService {
             ]
           }
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
 
       final response = await Amplify.API.query(request: queryReq).response;
@@ -270,6 +274,7 @@ class ContactService {
         final deleteReq = GraphQLRequest<String>(
           document: deleteMutation,
           variables: {'input': {'id': item['id']}},
+          authorizationMode: APIAuthorizationType.apiKey,
         );
         await Amplify.API.mutate(request: deleteReq).response;
       }

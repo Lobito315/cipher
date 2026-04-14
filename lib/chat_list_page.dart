@@ -15,6 +15,8 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'contacts_page.dart';
 import 'models/contact.dart';
+import 'package:provider/provider.dart';
+import 'providers/call_provider.dart';
 
 class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
@@ -41,6 +43,12 @@ class _ChatListPageState extends State<ChatListPage> {
     super.initState();
     _loadMyAvatar();
     _loadContactAvatars();
+    // Initialize call subscription now that user is logged in
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Provider.of<CallProvider>(context, listen: false).init();
+      }
+    });
   }
 
   Future<void> _loadMyAvatar() async {
@@ -183,7 +191,10 @@ class _ChatListPageState extends State<ChatListPage> {
   }
 
   void _showSecurityStatus() async {
-    final pubKey = await _encryptionService.getPublicKey();
+    final user = await _authService.currentUser;
+    if (user == null) return;
+    
+    final pubKey = await _encryptionService.getPublicKey(user.userId);
     if (!mounted) return;
 
     showDialog(

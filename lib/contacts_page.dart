@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -24,14 +25,27 @@ class ContactsPage extends StatefulWidget {
 class _ContactsPageState extends State<ContactsPage> {
   final _contactService = ContactService();
   final _profileService = ProfileService();
+  final _callService = CallService();
   final _picker = ImagePicker();
   List<Contact> _contacts = [];
   bool _isLoading = true;
+  String _myDisplayName = 'Me';
 
   @override
   void initState() {
     super.initState();
     _loadContacts();
+    _loadMyName();
+  }
+
+  Future<void> _loadMyName() async {
+    try {
+      final user = await Amplify.Auth.getCurrentUser();
+      final profile = await _profileService.getFullProfile(user.userId);
+      if (mounted && profile != null) {
+        setState(() => _myDisplayName = profile['username'] ?? user.username);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadContacts() async {
@@ -244,12 +258,12 @@ class _ContactsPageState extends State<ContactsPage> {
           IconButton(
             icon: const Icon(Icons.call_outlined, color: Color(0xFFBEF263), size: 20),
             onPressed: () async {
-              final callService = CallService();
               final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-              await callService.startCall(
+              await _callService.startCall(
                 receiverId: contact.userId,
                 receiverName: contact.displayName,
                 channelId: channelId,
+                callerName: _myDisplayName,
                 isAudioOnly: true,
               );
               if (mounted) {
@@ -269,12 +283,12 @@ class _ContactsPageState extends State<ContactsPage> {
           IconButton(
             icon: const Icon(Icons.videocam_outlined, color: Color(0xFFBEF263), size: 20),
             onPressed: () async {
-              final callService = CallService();
               final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-              await callService.startCall(
+              await _callService.startCall(
                 receiverId: contact.userId,
                 receiverName: contact.displayName,
                 channelId: channelId,
+                callerName: _myDisplayName,
                 isAudioOnly: false,
               );
               if (mounted) {

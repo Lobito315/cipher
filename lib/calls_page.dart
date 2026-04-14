@@ -1,14 +1,41 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'chat_list_page.dart';
 import 'vault_page.dart';
 import 'settings_page.dart';
 import 'call_page.dart';
 import 'contacts_page.dart';
 import 'services/call_service.dart';
+import 'services/profile_service.dart';
 
-class CallsPage extends StatelessWidget {
+class CallsPage extends StatefulWidget {
   const CallsPage({super.key});
+
+  @override
+  State<CallsPage> createState() => _CallsPageState();
+}
+
+class _CallsPageState extends State<CallsPage> {
+  final _callService = CallService();
+  final _profileService = ProfileService();
+  String _myDisplayName = 'Me';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyName();
+  }
+
+  Future<void> _loadMyName() async {
+    try {
+      final user = await Amplify.Auth.getCurrentUser();
+      final profile = await _profileService.getFullProfile(user.userId);
+      if (mounted && profile != null) {
+        setState(() => _myDisplayName = profile['username'] ?? user.username);
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,12 +66,12 @@ class CallsPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.call_outlined, color: Color(0xFFBEF263)),
             onPressed: () async {
-              final callService = CallService();
               final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-              await callService.startCall(
+              await _callService.startCall(
                 receiverId: "satoshi_id_placeholder", 
                 receiverName: "Satoshi",
                 channelId: channelId,
+                callerName: _myDisplayName,
                 isAudioOnly: true,
               );
               
@@ -65,12 +92,12 @@ class CallsPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.videocam_outlined, color: Color(0xFFBEF263)),
             onPressed: () async {
-              final callService = CallService();
               final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-              await callService.startCall(
+              await _callService.startCall(
                 receiverId: "satoshi_id_placeholder", 
                 receiverName: "Satoshi",
                 channelId: channelId,
+                callerName: _myDisplayName,
                 isAudioOnly: false,
               );
               
@@ -127,12 +154,12 @@ class CallsPage extends StatelessWidget {
               children: [
                 ElevatedButton.icon(
                   onPressed: () async {
-                    final callService = CallService();
                     final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-                    await callService.startCall(
+                    await _callService.startCall(
                       receiverId: "satoshi_id_placeholder",
                       receiverName: "Satoshi",
                       channelId: channelId,
+                      callerName: _myDisplayName,
                       isAudioOnly: true,
                     );
                     if (context.mounted) {
@@ -163,12 +190,12 @@ class CallsPage extends StatelessWidget {
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: () async {
-                    final callService = CallService();
                     final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-                    await callService.startCall(
+                    await _callService.startCall(
                       receiverId: "satoshi_id_placeholder",
                       receiverName: "Satoshi",
                       channelId: channelId,
+                      callerName: _myDisplayName,
                       isAudioOnly: false,
                     );
                     if (context.mounted) {

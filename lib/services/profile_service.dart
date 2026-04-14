@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:amplify_api/amplify_api.dart';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -21,6 +23,7 @@ class ProfileService {
           'username': username ?? userId,
           'updatedAt': DateTime.now().toUtc().toIso8601String(),
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
       final response = await Amplify.API.mutate(request: request).response;
       if (response.hasErrors) {
@@ -37,6 +40,7 @@ class ProfileService {
           'publicKey': publicKeyBase64,
           'updatedAt': DateTime.now().toUtc().toIso8601String(),
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
 
       final response = await Amplify.API.mutate(request: request).response;
@@ -59,6 +63,7 @@ class ProfileService {
           'username': newUsername,
           'updatedAt': DateTime.now().toUtc().toIso8601String(),
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
       final response = await Amplify.API.mutate(request: request).response;
       if (response.hasErrors) {
@@ -75,6 +80,7 @@ class ProfileService {
           'username': newUsername,
           'updatedAt': DateTime.now().toUtc().toIso8601String(),
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
 
       final response = await Amplify.API.mutate(request: request).response;
@@ -96,6 +102,7 @@ class ProfileService {
           'id': userId,
           'updatedAt': DateTime.now().toUtc().toIso8601String(),
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
       final response = await Amplify.API.mutate(request: request).response;
       if (response.hasErrors) {
@@ -111,6 +118,7 @@ class ProfileService {
           'id': userId,
           'updatedAt': DateTime.now().toUtc().toIso8601String(),
         },
+        authorizationMode: APIAuthorizationType.apiKey,
       );
 
       final response = await Amplify.API.mutate(request: request).response;
@@ -127,6 +135,7 @@ class ProfileService {
     final request = GraphQLRequest<String>(
       document: operation,
       variables: {'id': userId},
+      authorizationMode: APIAuthorizationType.apiKey,
     );
 
     final response = await Amplify.API.query(request: request).response;
@@ -150,6 +159,7 @@ class ProfileService {
     final request = GraphQLRequest<String>(
       document: operation,
       variables: {'id': userId},
+      authorizationMode: APIAuthorizationType.apiKey,
     );
 
     final response = await Amplify.API.query(request: request).response;
@@ -184,6 +194,7 @@ class ProfileService {
           ]
         }
       },
+      authorizationMode: APIAuthorizationType.apiKey,
     );
 
     try {

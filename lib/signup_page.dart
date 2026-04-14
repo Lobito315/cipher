@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'login_page.dart';
+import 'verification_page.dart';
 import 'services/auth_service.dart';
 import 'services/secure_storage_service.dart';
 import 'services/encryption_service.dart';
@@ -19,7 +20,8 @@ class _SignupPageState extends State<SignupPage> {
   final _secureStorage = SecureStorageService();
   final _encryptionService = EncryptionService();
   final _profileService = ProfileService();
-  final _emailController = TextEditingController();
+  final _cipherIdController = TextEditingController(text: '@');
+  final _phoneController = TextEditingController(text: '+1');
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -27,18 +29,20 @@ class _SignupPageState extends State<SignupPage> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _cipherIdController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
   Future<void> _signUp() async {
-    final email = _emailController.text.trim();
+    final cipherId = _cipherIdController.text.trim();
+    final phone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if (cipherId.isEmpty || cipherId == '@' || phone.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
@@ -62,37 +66,31 @@ class _SignupPageState extends State<SignupPage> {
     setState(() => _isLoading = true);
 
     try {
-      final result = await _authService.signUp(email: email, password: password);
+      final result = await _authService.signUp(
+        phoneNumber: phone,
+        cipherId: cipherId,
+        password: password,
+      );
 
-      // Save credentials for biometrics
-      await _secureStorage.saveCredentials(email, password);
-
-      // Generate E2EE identity keys (Deterministic from password)
-      await _encryptionService.initIdentityKeys(password, email);
-
-      // Sync Public Key to AWS
-      final pubKey = await _encryptionService.getPublicKey();
-      final user = await _authService.currentUser;
-      if (pubKey != null && user != null) {
-        await _profileService.updatePublicKey(user.userId, pubKey, email);
-      }
+      // Save credentials for biometrics (using phone as primary ID for login)
+      await _secureStorage.saveCredentials(phone, password);
 
       if (mounted) {
         String message = 'Account created!';
         if (!result.isSignUpComplete) {
-          message += ' Please check your email to verify.';
+          message += ' Please enter the code sent to your phone.';
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VerificationPage(phoneNumber: phone),
+            ),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
         }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: const Color(0xFFBEF263),
-          ),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-        );
       }
     } on AuthException catch (e) {
       if (mounted) {
@@ -214,9 +212,16 @@ class _SignupPageState extends State<SignupPage> {
 
                         // Input Fields
                         _buildInputField(
-                          controller: _emailController,
+                          controller: _cipherIdController,
                           icon: Icons.alternate_email,
                           hintText: 'Cipher ID (e.g., @alex)',
+                        ),
+                        const SizedBox(height: 20),
+                        _buildInputField(
+                          controller: _phoneController,
+                          icon: Icons.phone_android_outlined,
+                          hintText: 'Phone Number (e.g., +1...)',
+                          keyboardType: TextInputType.phone,
                         ),
                         const SizedBox(height: 20),
                         _buildInputField(
@@ -309,6 +314,7 @@ class _SignupPageState extends State<SignupPage> {
     required String hintText,
     bool isPassword = false,
     required TextEditingController controller,
+    TextInputType? keyboardType,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -325,6 +331,7 @@ class _SignupPageState extends State<SignupPage> {
           child: TextField(
             controller: controller,
             obscureText: isPassword,
+            keyboardType: keyboardType,
             style: const TextStyle(color: Color(0xFFF1F5F9)),
             decoration: InputDecoration(
               hintText: hintText,

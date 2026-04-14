@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/foundation.dart';
 
 class CallService {
@@ -9,15 +10,14 @@ class CallService {
     required String receiverId,
     required String receiverName,
     required String channelId,
+    required String callerName,
     bool isAudioOnly = false,
   }) async {
     final user = await Amplify.Auth.getCurrentUser();
     final senderId = user.userId;
-    // We try to get username from profile or just use a default
-    final senderName = user.username; 
 
     final type = isAudioOnly ? 'audio' : 'video';
-    final signalContent = "$signalPrefix:CALL_REQUEST|$channelId|$senderName|$type";
+    final signalContent = "$signalPrefix:CALL_REQUEST|$channelId|$callerName|$type";
 
     const operation = 'mutation CreateMessage(\$input: CreateMessageInput!) { '
         'createMessage(input: \$input) { id senderId receiverId content createdAt } }';
@@ -32,6 +32,7 @@ class CallService {
           'createdAt': DateTime.now().toUtc().toIso8601String(),
         }
       },
+      authorizationMode: APIAuthorizationType.apiKey,
     );
 
     try {
@@ -68,6 +69,7 @@ class CallService {
           'createdAt': DateTime.now().toUtc().toIso8601String(),
         }
       },
+      authorizationMode: APIAuthorizationType.apiKey,
     );
 
     await Amplify.API.mutate(request: request).response;
