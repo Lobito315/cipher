@@ -88,16 +88,14 @@ class IncomingCallOverlay extends StatelessWidget {
                             label: "Accept",
                             iconColor: const Color(0xFF1B2210),
                             onTap: () {
+                              final callerId = callProvider.callerId;
                               callProvider.acceptCall(context, (channel, name, isAudioOnly) {
-                                // Use the global navigator key because this overlay
-                                // is rendered as a sibling of the Navigator (in
-                                // MaterialApp.builder), so context-based navigation
-                                // cannot reach the Navigator via ancestor lookup.
                                 MyApp.navigatorKey.currentState?.push(
                                   MaterialPageRoute(
                                     builder: (_) => CallPage(
                                       channelName: channel,
                                       remoteUserName: name,
+                                      remoteUserId: callerId ?? '',
                                       isAudioOnly: isAudioOnly,
                                     ),
                                   ),

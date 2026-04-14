@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
@@ -6,7 +7,9 @@ import 'vault_page.dart';
 import 'settings_page.dart';
 import 'call_page.dart';
 import 'contacts_page.dart';
+import 'models/contact.dart';
 import 'services/call_service.dart';
+import 'services/contact_service.dart';
 import 'services/profile_service.dart';
 
 class CallsPage extends StatefulWidget {
@@ -19,6 +22,7 @@ class CallsPage extends StatefulWidget {
 class _CallsPageState extends State<CallsPage> {
   final _callService = CallService();
   final _profileService = ProfileService();
+  final _contactService = ContactService();
   String _myDisplayName = 'Me';
 
   @override
@@ -37,10 +41,59 @@ class _CallsPageState extends State<CallsPage> {
     } catch (_) {}
   }
 
+  /// Shows a contact picker dialog. Returns the selected [Contact] or null.
+  Future<Contact?> _showContactPickerDialog() async {
+    final contacts = await _contactService.getContacts();
+    if (!mounted) return null;
+
+    return showDialog<Contact>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        alignment: Alignment.bottomCenter,
+        child: SizedBox(
+          width: double.infinity,
+          height: MediaQuery.of(ctx).size.height * 0.6,
+          child: _ContactPickerSheet(contacts: contacts),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startCall({required bool isAudioOnly}) async {
+    final contact = await _showContactPickerDialog();
+    if (contact == null) return; // User cancelled
+
+    final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
+    await _callService.startCall(
+      receiverId: contact.userId,
+      receiverName: contact.displayName,
+      channelId: channelId,
+      callerName: _myDisplayName,
+      isAudioOnly: isAudioOnly,
+    );
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CallPage(
+            channelName: channelId,
+            remoteUserName: contact.displayName,
+            remoteUserId: contact.userId,
+            isAudioOnly: isAudioOnly,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1B2210), // background-dark
+      backgroundColor: const Color(0xFF1B2210),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1B2210).withValues(alpha: 0.8),
         flexibleSpace: ClipRect(
@@ -65,55 +118,11 @@ class _CallsPageState extends State<CallsPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.call_outlined, color: Color(0xFFBEF263)),
-            onPressed: () async {
-              final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-              await _callService.startCall(
-                receiverId: "satoshi_id_placeholder", 
-                receiverName: "Satoshi",
-                channelId: channelId,
-                callerName: _myDisplayName,
-                isAudioOnly: true,
-              );
-              
-              if (context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CallPage(
-                      channelName: channelId,
-                      remoteUserName: "Satoshi",
-                      isAudioOnly: true,
-                    ),
-                  ),
-                );
-              }
-            },
+            onPressed: () => _startCall(isAudioOnly: true),
           ),
           IconButton(
             icon: const Icon(Icons.videocam_outlined, color: Color(0xFFBEF263)),
-            onPressed: () async {
-              final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-              await _callService.startCall(
-                receiverId: "satoshi_id_placeholder", 
-                receiverName: "Satoshi",
-                channelId: channelId,
-                callerName: _myDisplayName,
-                isAudioOnly: false,
-              );
-              
-              if (context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CallPage(
-                      channelName: channelId,
-                      remoteUserName: "Satoshi",
-                      isAudioOnly: false,
-                    ),
-                  ),
-                );
-              }
-            },
+            onPressed: () => _startCall(isAudioOnly: false),
           ),
         ],
       ),
@@ -153,28 +162,7 @@ class _CallsPageState extends State<CallsPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () async {
-                    final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-                    await _callService.startCall(
-                      receiverId: "satoshi_id_placeholder",
-                      receiverName: "Satoshi",
-                      channelId: channelId,
-                      callerName: _myDisplayName,
-                      isAudioOnly: true,
-                    );
-                    if (context.mounted) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CallPage(
-                            channelName: channelId,
-                            remoteUserName: "Satoshi",
-                            isAudioOnly: true,
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: () => _startCall(isAudioOnly: true),
                   icon: const Icon(Icons.call_rounded),
                   label: const Text('Start Audio Call'),
                   style: ElevatedButton.styleFrom(
@@ -189,28 +177,7 @@ class _CallsPageState extends State<CallsPage> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
-                  onPressed: () async {
-                    final channelId = "call_${DateTime.now().millisecondsSinceEpoch}";
-                    await _callService.startCall(
-                      receiverId: "satoshi_id_placeholder",
-                      receiverName: "Satoshi",
-                      channelId: channelId,
-                      callerName: _myDisplayName,
-                      isAudioOnly: false,
-                    );
-                    if (context.mounted) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CallPage(
-                            channelName: channelId,
-                            remoteUserName: "Satoshi",
-                            isAudioOnly: false,
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: () => _startCall(isAudioOnly: false),
                   icon: const Icon(Icons.videocam_rounded),
                   label: const Text('Start Video Call'),
                   style: ElevatedButton.styleFrom(
@@ -316,6 +283,164 @@ class _CallsPageState extends State<CallsPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Contact Picker Sheet ─────────────────────────────────────────────────────
+
+class _ContactPickerSheet extends StatelessWidget {
+  final List<Contact> contacts;
+
+  const _ContactPickerSheet({required this.contacts});
+
+  @override
+  Widget build(BuildContext context) {
+    // Material gives the widget its own rendering surface (required in dialogs on web)
+    return Material(
+      color: const Color(0xFF1E2A12),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: Column(
+        // Column inside SizedBox (bounded height from Dialog) — safe to use Expanded here
+        children: [
+          // ── Handle bar ──
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFBEF263).withOpacity(0.35),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // ── Title ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                const Icon(Icons.contacts_outlined, color: Color(0xFFBEF263), size: 20),
+                const SizedBox(width: 10),
+                const Text(
+                  'Select a Contact',
+                  style: TextStyle(
+                    color: Color(0xFFF1F5F9),
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Color(0xFF64748B), size: 20),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Color(0x1ABEF263), height: 1),
+          // ── Contact list / empty state ──
+          Expanded(
+            child: contacts.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.people_outline,
+                          size: 48,
+                          color: const Color(0xFFBEF263).withOpacity(0.2),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No contacts yet.\nAdd contacts first to start a call.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: contacts.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(color: Color(0x0FBEF263), height: 1, indent: 72),
+                    itemBuilder: (context, index) {
+                      final contact = contacts[index];
+                      return _ContactTile(
+                        contact: contact,
+                        onTap: () => Navigator.pop(context, contact),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactTile extends StatelessWidget {
+  final Contact contact;
+  final VoidCallback onTap;
+
+  const _ContactTile({required this.contact, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      splashColor: const Color(0x1ABEF263),
+      highlightColor: const Color(0x0DBEF263),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // Avatar
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: const Color(0x33BEF263),
+              backgroundImage: contact.avatarBase64 != null
+                  ? MemoryImage(base64Decode(contact.avatarBase64!))
+                  : null,
+              child: contact.avatarBase64 == null
+                  ? Text(
+                      contact.displayName[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(0xFFBEF263),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            // Name & username
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    contact.displayName,
+                    style: const TextStyle(
+                      color: Color(0xFFF1F5F9),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  Text(
+                    '@${contact.username}',
+                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            // Arrow hint
+            const Icon(Icons.chevron_right_rounded, color: Color(0x66BEF263), size: 20),
+          ],
+        ),
       ),
     );
   }

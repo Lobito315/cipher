@@ -13,9 +13,13 @@ class CallProvider extends ChangeNotifier {
   String? _channelId;
   StreamSubscription? _subscription;
 
+  // Fired when the remote party ends the call so CallPage can close itself.
+  VoidCallback? onRemoteCallEnded;
+
   bool get isIncomingCall => _isIncomingCall;
   bool get isAudioOnly => _isAudioOnly;
   String? get callerName => _callerName;
+  String? get callerId => _callerId;
   String? get channelId => _channelId;
 
   void init() async {
@@ -26,15 +30,18 @@ class CallProvider extends ChangeNotifier {
 
     const subDoc = 'subscription OnCreateMessage { '
         'onCreateMessage { id senderId receiverId content createdAt } }';
-    
-    final subRequest = GraphQLRequest<String>(document: subDoc, authorizationMode: APIAuthorizationType.apiKey);
-    
+
+    final subRequest = GraphQLRequest<String>(
+      document: subDoc,
+      authorizationMode: APIAuthorizationType.apiKey,
+    );
+
     _subscription = Amplify.API.subscribe(subRequest).listen((event) {
       if (event.data != null) {
         try {
           final decoded = jsonDecode(event.data!);
           final message = decoded['onCreateMessage'];
-          
+
           if (message != null && message['receiverId'] == myId) {
             final content = message['content'] as String;
             if (content.startsWith(CallService.signalPrefix)) {
@@ -46,14 +53,14 @@ class CallProvider extends ChangeNotifier {
         }
       }
     });
-    
+
     debugPrint('CallProvider initialized and listening for signals');
   }
 
   void _handleSignal(String senderId, String content) {
     final parts = content.split(':');
     if (parts.length < 2) return;
-    
+
     final signalParts = parts[1].split('|');
     final action = signalParts[0];
 
@@ -61,13 +68,19 @@ class CallProvider extends ChangeNotifier {
       final channel = signalParts[1];
       final name = signalParts.length > 2 ? signalParts[2] : "Unknown Caller";
       final type = signalParts.length > 3 ? signalParts[3] : "video";
-      
+
       _isIncomingCall = true;
       _isAudioOnly = type == 'audio';
       _callerId = senderId;
       _channelId = channel;
       _callerName = name;
       notifyListeners();
+
+    } else if (action == 'CALL_ENDED') {
+      // The remote party hung up — fire the callback so CallPage can pop.
+      debugPrint('Remote party ended the call (channel: ${signalParts.elementAtOrNull(1)})');
+      onRemoteCallEnded?.call();
+
     } else if (action == 'CALL_REJECTED' || action == 'CALL_ACCEPTED') {
       // Handle call responses if needed
     }
@@ -79,7 +92,7 @@ class CallProvider extends ChangeNotifier {
     final isAudio = _isAudioOnly;
     _isIncomingCall = false;
     notifyListeners();
-    
+
     if (channel != null && name != null) {
       onAccept(channel, name, isAudio);
     }
@@ -94,7 +107,7 @@ class CallProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Call this on sign out so that init() can be called afresh on next login
+  /// Call this on sign out so that init() can be called afresh on next login.
   Future<void> reset() async {
     await _subscription?.cancel();
     _subscription = null;
@@ -103,6 +116,7 @@ class CallProvider extends ChangeNotifier {
     _callerId = null;
     _callerName = null;
     _channelId = null;
+    onRemoteCallEnded = null;
     notifyListeners();
   }
 

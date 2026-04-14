@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
+import 'providers/call_provider.dart';
+import 'services/call_service.dart';
 
 // Conditional import: web gets the stub, native gets the real Agora service
 import 'services/video_call_service.dart'
@@ -9,12 +12,14 @@ import 'services/video_call_service.dart'
 class CallPage extends StatefulWidget {
   final String channelName;
   final String remoteUserName;
+  final String remoteUserId;   // needed to send CALL_ENDED signal
   final bool isAudioOnly;
 
   const CallPage({
     super.key,
     required this.channelName,
     required this.remoteUserName,
+    required this.remoteUserId,
     this.isAudioOnly = false,
   });
 
@@ -33,7 +38,8 @@ class _CallPageState extends State<CallPage>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  final _callService = VideoCallService();
+  final _videoCallService = VideoCallService();
+  final _callService = CallService();
 
   @override
   void initState() {
@@ -47,10 +53,11 @@ class _CallPageState extends State<CallPage>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Defer initialization to after the first frame — calling setState()
-    // from initState() directly throws an assertion in Flutter debug mode.
+    // Defer to after first frame so context is available.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initCall();
+      // Listen for the remote party hanging up.
+      context.read<CallProvider>().onRemoteCallEnded = _onRemoteHangUp;
     });
   }
 
@@ -73,8 +80,8 @@ class _CallPageState extends State<CallPage>
 
     // Native: use Agora
     try {
-      await _callService.initialize();
-      await _callService.joinChannel(widget.channelName, 0);
+      await _videoCallService.initialize();
+      await _videoCallService.joinChannel(widget.channelName, 0);
       if (mounted) {
         setState(() {
           _connected = true;
@@ -92,18 +99,46 @@ class _CallPageState extends State<CallPage>
   @override
   void dispose() {
     _pulseController.dispose();
+    // Unregister callback so a stale reference doesn't linger.
+    if (mounted) {
+      try {
+        context.read<CallProvider>().onRemoteCallEnded = null;
+      } catch (_) {}
+    }
     if (!kIsWeb) {
-      _callService.leaveChannel();
-      _callService.dispose();
+      _videoCallService.leaveChannel();
+      _videoCallService.dispose();
     }
     super.dispose();
+  }
+
+  /// Called when the remote party sends CALL_ENDED.
+  void _onRemoteHangUp() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('The other party ended the call.'),
+        duration: Duration(seconds: 3),
+        backgroundColor: Color(0xFF1B2210),
+      ),
+    );
+    Navigator.of(context).pop();
+  }
+
+  /// Ends the call locally and notifies the remote party.
+  Future<void> _endCall() async {
+    await _callService.endCall(
+      receiverId: widget.remoteUserId,
+      channelId: widget.channelName,
+    );
+    if (mounted) Navigator.of(context).pop();
   }
 
   void _onToggleMute() {
     setState(() => _muted = !_muted);
     // Agora mute handled inside VideoCallService; guarded at runtime
     try {
-      if (!kIsWeb) _callService.engine?.muteLocalAudioStream(_muted);
+      if (!kIsWeb) _videoCallService.engine?.muteLocalAudioStream(_muted);
     } catch (_) {}
   }
 
@@ -335,7 +370,7 @@ class _CallPageState extends State<CallPage>
               ),
               Column(children: [
                 GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: _endCall,
                   child: Container(
                     width: 68,
                     height: 68,

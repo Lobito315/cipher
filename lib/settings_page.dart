@@ -13,6 +13,7 @@ import 'services/auth_service.dart';
 import 'services/profile_service.dart';
 import 'package:provider/provider.dart';
 import 'providers/call_provider.dart';
+import 'providers/chat_notification_provider.dart';
 import 'services/contact_service.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -147,8 +148,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 Icons.logout,
                 iconColor: Colors.redAccent,
                 onTap: () async {
-                  // Reset call subscription before signing out
+                  // Reset subscriptions before signing out
                   await Provider.of<CallProvider>(context, listen: false).reset();
+                  await Provider.of<ChatNotificationProvider>(context, listen: false).reset();
                   ContactService().clearCache();
                   await _authService.signOut();
                   if (context.mounted) {

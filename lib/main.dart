@@ -8,7 +8,9 @@ import 'login_page.dart';
 import 'package:provider/provider.dart';
 import 'providers/privacy_provider.dart';
 import 'providers/call_provider.dart';
+import 'providers/chat_notification_provider.dart';
 import 'components/incoming_call_overlay.dart';
+import 'components/chat_notification_banner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +24,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => PrivacyProvider()),
         ChangeNotifierProvider(create: (_) => CallProvider()),
+        ChangeNotifierProvider(create: (_) => ChatNotificationProvider()),
       ],
       child: const MyApp(),
     ),
@@ -68,6 +71,7 @@ class MyApp extends StatelessWidget {
           children: [
             if (child != null) child,
             const IncomingCallOverlay(),
+            const ChatNotificationBanner(),
           ],
         );
       },

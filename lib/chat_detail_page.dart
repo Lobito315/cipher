@@ -243,6 +243,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         builder: (context) => CallPage(
                           channelName: channelId,
                           remoteUserName: widget.receiverName,
+                          remoteUserId: widget.receiverId,
                           isAudioOnly: true,
                         ),
                       ),
@@ -271,6 +272,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         builder: (context) => CallPage(
                           channelName: channelId,
                           remoteUserName: widget.receiverName,
+                          remoteUserId: widget.receiverId,
                           isAudioOnly: false,
                         ),
                       ),

@@ -17,6 +17,7 @@ import 'contacts_page.dart';
 import 'models/contact.dart';
 import 'package:provider/provider.dart';
 import 'providers/call_provider.dart';
+import 'providers/chat_notification_provider.dart';
 
 class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
@@ -43,10 +44,11 @@ class _ChatListPageState extends State<ChatListPage> {
     super.initState();
     _loadMyAvatar();
     _loadContactAvatars();
-    // Initialize call subscription now that user is logged in
+    // Initialize subscriptions now that the user is logged in
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         Provider.of<CallProvider>(context, listen: false).init();
+        Provider.of<ChatNotificationProvider>(context, listen: false).init();
       }
     });
   }

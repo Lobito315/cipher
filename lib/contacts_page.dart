@@ -273,6 +273,7 @@ class _ContactsPageState extends State<ContactsPage> {
                     builder: (context) => CallPage(
                       channelName: channelId,
                       remoteUserName: contact.displayName,
+                      remoteUserId: contact.userId,
                       isAudioOnly: true,
                     ),
                   ),
@@ -298,6 +299,7 @@ class _ContactsPageState extends State<ContactsPage> {
                     builder: (context) => CallPage(
                       channelName: channelId,
                       remoteUserName: contact.displayName,
+                      remoteUserId: contact.userId,
                       isAudioOnly: false,
                     ),
                   ),

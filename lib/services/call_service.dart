@@ -1,11 +1,10 @@
-import 'dart:convert';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/foundation.dart';
 
 class CallService {
   static const String signalPrefix = "_SIGNAL_";
-  
+
   Future<void> startCall({
     required String receiverId,
     required String receiverName,
@@ -19,32 +18,8 @@ class CallService {
     final type = isAudioOnly ? 'audio' : 'video';
     final signalContent = "$signalPrefix:CALL_REQUEST|$channelId|$callerName|$type";
 
-    const operation = 'mutation CreateMessage(\$input: CreateMessageInput!) { '
-        'createMessage(input: \$input) { id senderId receiverId content createdAt } }';
-    
-    final request = GraphQLRequest<String>(
-      document: operation,
-      variables: {
-        'input': {
-          'senderId': senderId,
-          'receiverId': receiverId,
-          'content': signalContent,
-          'createdAt': DateTime.now().toUtc().toIso8601String(),
-        }
-      },
-      authorizationMode: APIAuthorizationType.apiKey,
-    );
-
-    try {
-      final response = await Amplify.API.mutate(request: request).response;
-      if (response.hasErrors) {
-        debugPrint('Failed to send call signal: ${response.errors}');
-      } else {
-        debugPrint('Call signal sent to $receiverId');
-      }
-    } catch (e) {
-      debugPrint('Error sending call signal: $e');
-    }
+    await _sendSignal(senderId: senderId, receiverId: receiverId, content: signalContent);
+    debugPrint('CALL_REQUEST signal sent to $receiverId');
   }
 
   Future<void> sendResponse({
@@ -54,24 +29,54 @@ class CallService {
   }) async {
     final user = await Amplify.Auth.getCurrentUser();
     final senderId = user.userId;
-    final signalContent = "$signalPrefix:\$responseType|\$channelId";
+    final signalContent = "$signalPrefix:$responseType|$channelId";
 
+    await _sendSignal(senderId: senderId, receiverId: receiverId, content: signalContent);
+  }
+
+  /// Notifies the other party that the local user ended the call.
+  Future<void> endCall({
+    required String receiverId,
+    required String channelId,
+  }) async {
+    final user = await Amplify.Auth.getCurrentUser();
+    final senderId = user.userId;
+    final signalContent = "$signalPrefix:CALL_ENDED|$channelId";
+
+    await _sendSignal(senderId: senderId, receiverId: receiverId, content: signalContent);
+    debugPrint('CALL_ENDED signal sent to $receiverId');
+  }
+
+  // ─── Private helper ────────────────────────────────────────────────────────
+
+  Future<void> _sendSignal({
+    required String senderId,
+    required String receiverId,
+    required String content,
+  }) async {
     const operation = 'mutation CreateMessage(\$input: CreateMessageInput!) { '
         'createMessage(input: \$input) { id senderId receiverId content createdAt } }';
-    
+
     final request = GraphQLRequest<String>(
       document: operation,
       variables: {
         'input': {
           'senderId': senderId,
           'receiverId': receiverId,
-          'content': signalContent,
+          'content': content,
           'createdAt': DateTime.now().toUtc().toIso8601String(),
         }
       },
       authorizationMode: APIAuthorizationType.apiKey,
     );
 
-    await Amplify.API.mutate(request: request).response;
+    try {
+      final response = await Amplify.API.mutate(request: request).response;
+      if (response.hasErrors) {
+        debugPrint('Signal error: ${response.errors}');
+      }
+    } catch (e) {
+      debugPrint('Error sending signal: $e');
+    }
   }
 }
