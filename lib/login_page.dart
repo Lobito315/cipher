@@ -9,6 +9,7 @@ import 'services/local_auth_service.dart';
 import 'services/secure_storage_service.dart';
 import 'services/encryption_service.dart';
 import 'services/profile_service.dart';
+import 'l10n/translations.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -342,10 +343,10 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ],
                               ),
-                               const SizedBox(height: 24),
-                              const Text(
-                                'Welcome to Cipher',
-                                style: TextStyle(
+                              const SizedBox(height: 24),
+                              Text(
+                                context.tr('login_title'),
+                                style: const TextStyle(
                                   color: Color(0xFFF1F5F9), // text-slate-100
                                   fontSize: 32,
                                   fontWeight: FontWeight.bold,
@@ -356,7 +357,7 @@ class _LoginPageState extends State<LoginPage> {
                               const SizedBox(
                                 width: 280,
                                 child: Text(
-                                  'The Gateway to Secure Communication. Your privacy, encrypted.',
+                                  'Cipher Secure Link',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: Color(0xFF94A3B8), // text-slate-400
@@ -383,7 +384,7 @@ class _LoginPageState extends State<LoginPage> {
                                   keyboardType: TextInputType.phone,
                                   style: const TextStyle(color: Colors.white),
                                   decoration: InputDecoration(
-                                    hintText: 'Phone Number (e.g., +1)',
+                                    hintText: context.tr('email'),
                                     hintStyle: const TextStyle(
                                       color: Color(0xFF3A4823),
                                     ),
@@ -422,7 +423,7 @@ class _LoginPageState extends State<LoginPage> {
                                   obscureText: true,
                                   style: const TextStyle(color: Colors.white),
                                   decoration: InputDecoration(
-                                    hintText: 'Master Password',
+                                    hintText: context.tr('password'),
                                     hintStyle: const TextStyle(
                                       color: Color(0xFF3A4823),
                                     ),
@@ -482,15 +483,15 @@ class _LoginPageState extends State<LoginPage> {
                                       ? const CircularProgressIndicator(
                                           color: Color(0xFF0A0C07),
                                         )
-                                      : const Row(
+                                      : Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
                                           children: [
-                                            Icon(Icons.vpn_key, size: 24),
-                                            SizedBox(width: 12),
+                                            const Icon(Icons.vpn_key, size: 24),
+                                            const SizedBox(width: 12),
                                             Text(
-                                              'Login Securely',
-                                              style: TextStyle(
+                                              context.tr('login_btn'),
+                                              style: const TextStyle(
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.bold,
                                               ),
@@ -549,9 +550,9 @@ class _LoginPageState extends State<LoginPage> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Text(
-                                      "Don't have an account?",
-                                      style: TextStyle(
+                                    Text(
+                                      context.tr('signup_q'),
+                                      style: const TextStyle(
                                         color: Color(0xFF94A3B8),
                                         fontSize: 14,
                                       ),
@@ -574,9 +575,9 @@ class _LoginPageState extends State<LoginPage> {
                                           horizontal: 8,
                                         ),
                                       ),
-                                      child: const Text(
-                                        'Sign Up Now',
-                                        style: TextStyle(
+                                      child: Text(
+                                        context.tr('signup_link'),
+                                        style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
                                         ),

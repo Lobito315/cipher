@@ -1,12 +1,12 @@
 {
   "version": "1",
   "cognitoConfig": {
-    "identityPoolName": "cipherb49ba192_identitypool_b49ba192",
+    "identityPoolName": "cipher2762851a_identitypool_2762851a",
     "allowUnauthenticatedIdentities": false,
-    "resourceNameTruncated": "cipherb49ba192",
-    "userPoolName": "cipherb49ba192_userpool_b49ba192",
+    "resourceNameTruncated": "cipher2762851a",
+    "userPoolName": "cipher2762851a_userpool_2762851a",
     "autoVerifiedAttributes": [
-      "email"
+      "phone_number"
     ],
     "mfaConfiguration": "OFF",
     "mfaTypes": [
@@ -20,26 +20,33 @@
     "passwordPolicyMinLength": 8,
     "passwordPolicyCharacters": [],
     "requiredAttributes": [
-      "email"
+      "phone_number"
     ],
     "aliasAttributes": [],
     "userpoolClientGenerateSecret": false,
     "userpoolClientRefreshTokenValidity": 30,
     "userpoolClientWriteAttributes": [
-      "email"
+      "preferred_username",
+      "phone_number"
     ],
     "userpoolClientReadAttributes": [
-      "email"
+      "phone_number",
+      "preferred_username"
     ],
-    "userpoolClientLambdaRole": "cipherb49ba192_userpoolclient_lambda_role",
-    "userpoolClientSetAttributes": false,
-    "sharedId": "b49ba192",
-    "resourceName": "cipherb49ba192",
+    "userpoolClientLambdaRole": "cipher2762851a_userpoolclient_lambda_role",
+    "userpoolClientSetAttributes": true,
+    "sharedId": "2762851a",
+    "resourceName": "cipher2762851a2762851a",
     "authSelections": "identityPoolAndUserPool",
-    "useDefault": "default",
+    "useDefault": "manual",
+    "thirdPartyAuth": false,
     "usernameAttributes": [
-      "email"
+      "phone_number"
     ],
+    "userPoolGroups": false,
+    "adminQueries": false,
+    "triggers": {},
+    "hostedUI": false,
     "userPoolGroupList": [],
     "serviceName": "Cognito",
     "usernameCaseSensitive": false,

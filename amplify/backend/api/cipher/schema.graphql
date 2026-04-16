@@ -1,26 +1,17 @@
-type Profile @model @auth(rules: [{ allow: public }]) {
+type Profile @model @auth(rules: [{ allow: public }, { allow: private }]) {
+
   id: ID!
   publicKey: String!
   username: String! @index(name: "byUsername", queryField: "profileByUsername")
-  avatarUrl: String
   updatedAt: AWSDateTime
 }
 
-type Message @model @auth(rules: [{ allow: public }]) {
+type Message @model @auth(rules: [{ allow: public }, { allow: private }]) {
+
   id: ID!
   senderId: ID! @index(name: "bySender", queryField: "messagesBySender")
   receiverId: ID! @index(name: "byReceiver", queryField: "messagesByReceiver")
   content: String!
-  createdAt: AWSDateTime!
-}
-
-type VaultItem @model @auth(rules: [{ allow: public }]) {
-  id: ID!
-  ownerId: ID! @index(name: "byOwner", queryField: "vaultItemsByOwner")
-  title: String!
-  category: String!
-  username: String
-  encryptedPassword: String!
-  encryptedNote: String
+  status: Int
   createdAt: AWSDateTime!
 }

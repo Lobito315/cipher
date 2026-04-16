@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'services/auth_service.dart';
 import 'login_page.dart';
+import 'l10n/translations.dart';
 
 class VerificationPage extends StatefulWidget {
   final String phoneNumber;
@@ -126,9 +127,9 @@ class _VerificationPageState extends State<VerificationPage> {
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                       const Spacer(),
-                      const Text(
-                        'Verify Phone',
-                        style: TextStyle(
+                      Text(
+                        context.tr('verify_title'),
+                        style: const TextStyle(
                           color: Color(0xFFF1F5F9),
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -152,10 +153,10 @@ class _VerificationPageState extends State<VerificationPage> {
                           color: Color(0xFFBEF263),
                         ),
                         const SizedBox(height: 32),
-                        const Text(
-                          'Enter Authentication Code',
+                        Text(
+                          context.tr('verify_code_prompt'),
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Color(0xFFF1F5F9),
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -176,9 +177,9 @@ class _VerificationPageState extends State<VerificationPage> {
                         const SizedBox(height: 32),
                         TextButton(
                           onPressed: _resendCode,
-                          child: const Text(
-                            'Didn\'t receive a code? Resend',
-                            style: TextStyle(color: Color(0xFFBEF263)),
+                          child: Text(
+                            context.tr('verify_resend'),
+                            style: const TextStyle(color: Color(0xFFBEF263)),
                           ),
                         ),
                         const SizedBox(height: 48),
@@ -194,9 +195,9 @@ class _VerificationPageState extends State<VerificationPage> {
                           ),
                           child: _isLoading
                               ? const CircularProgressIndicator(color: Color(0xFF0A0C07))
-                              : const Text(
-                                  'Verify Account',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              : Text(
+                                  context.tr('verify_action'),
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                 ),
                         ),
                       ],

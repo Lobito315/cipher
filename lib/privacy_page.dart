@@ -9,6 +9,7 @@ import 'services/local_auth_service.dart';
 import 'active_sessions_page.dart';
 import 'audit_logs_page.dart';
 import 'login_page.dart';
+import 'l10n/translations.dart';
 
 class PrivacyPage extends StatefulWidget {
   const PrivacyPage({super.key});
@@ -91,9 +92,9 @@ class _PrivacyPageState extends State<PrivacyPage> {
               },
             ),
             centerTitle: true,
-            title: const Text(
-              'Privacy Command',
-              style: TextStyle(
+            title: Text(
+              context.tr('privacy_security'),
+              style: const TextStyle(
                 color: Color(0xFFF1F5F9), // text-slate-100
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -521,25 +522,25 @@ class _PrivacyPageState extends State<PrivacyPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem('Chats', Icons.chat_bubble_outline, false, () {
+                _buildNavItem(context.tr('nav_chats'), Icons.chat_bubble_outline, false, () {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (context) => const ChatListPage()),
                   );
                 }),
-                _buildNavItem('Calls', Icons.call_outlined, false, () {
+                _buildNavItem(context.tr('nav_calls'), Icons.call_outlined, false, () {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (context) => const CallsPage()),
                   );
                 }),
-                _buildNavItem('Vault', Icons.key_outlined, false, () {
+                _buildNavItem(context.tr('nav_vault'), Icons.key_outlined, false, () {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (context) => const VaultPage()),
                   );
                 }),
-                _buildNavItem('Settings', Icons.settings, false, () {
+                _buildNavItem(context.tr('nav_settings'), Icons.settings, false, () {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (context) => const SettingsPage()),

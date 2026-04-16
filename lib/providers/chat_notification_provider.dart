@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_api/amplify_api.dart';
 import '../services/call_service.dart';
@@ -49,7 +50,7 @@ class ChatNotificationProvider extends ChangeNotifier {
       authorizationMode: APIAuthorizationType.apiKey,
     );
 
-    _subscription = Amplify.API.subscribe(subRequest).listen((event) {
+    _subscription = Amplify.API.subscribe(subRequest).listen((event) async {
       if (event.data == null) return;
       try {
         final decoded = jsonDecode(event.data!);
@@ -71,6 +72,11 @@ class ChatNotificationProvider extends ChangeNotifier {
 
         // Suppress if user is already in this conversation
         if (senderId == activeChatWithUserId) return;
+
+        // Check user settings for notifications
+        final prefs = await SharedPreferences.getInstance();
+        final enabled = prefs.getBool('chat_notif') ?? true;
+        if (!enabled) return;
 
         // Resolve sender name from contacts, fall back to "Unknown"
         final senderName = contactMap[senderId] ?? 'Unknown';

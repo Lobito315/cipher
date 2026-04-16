@@ -11,6 +11,7 @@ import 'models/contact.dart';
 import 'services/call_service.dart';
 import 'services/contact_service.dart';
 import 'services/profile_service.dart';
+import 'l10n/translations.dart';
 
 class CallsPage extends StatefulWidget {
   const CallsPage({super.key});
@@ -106,9 +107,9 @@ class _CallsPageState extends State<CallsPage> {
         shape: const Border(
           bottom: BorderSide(color: Color(0x1ABEF263), width: 1),
         ),
-        title: const Text(
-          'Encrypted Calls',
-          style: TextStyle(
+        title: Text(
+          context.tr('calls_title'),
+          style: const TextStyle(
             color: Color(0xFFF1F5F9),
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -144,9 +145,10 @@ class _CallsPageState extends State<CallsPage> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'No Recent Calls',
-              style: TextStyle(
+            Text(
+              context.tr('no_calls'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
                 color: Color(0xFFF1F5F9),
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -205,7 +207,7 @@ class _CallsPageState extends State<CallsPage> {
           children: [
             _buildNavItem(
               context,
-              'Chats',
+              context.tr('nav_chats'),
               Icons.chat_bubble_outline,
               false,
               () {
@@ -217,7 +219,7 @@ class _CallsPageState extends State<CallsPage> {
             ),
             _buildNavItem(
               context,
-              'Contacts',
+              context.tr('nav_contacts'),
               Icons.people_alt_outlined,
               false,
               () {
@@ -227,8 +229,8 @@ class _CallsPageState extends State<CallsPage> {
                 );
               },
             ),
-            _buildNavItem(context, 'Calls', Icons.videocam_outlined, true, () {}),
-            _buildNavItem(context, 'Vault', Icons.key_outlined, false, () {
+            _buildNavItem(context, context.tr('nav_calls'), Icons.videocam_outlined, true, () {}),
+            _buildNavItem(context, context.tr('nav_vault'), Icons.key_outlined, false, () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const VaultPage()),
@@ -236,7 +238,7 @@ class _CallsPageState extends State<CallsPage> {
             }),
             _buildNavItem(
               context,
-              'Settings',
+              context.tr('nav_settings'),
               Icons.settings_outlined,
               false,
               () {

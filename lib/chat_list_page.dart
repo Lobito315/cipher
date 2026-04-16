@@ -18,6 +18,7 @@ import 'models/contact.dart';
 import 'package:provider/provider.dart';
 import 'providers/call_provider.dart';
 import 'providers/chat_notification_provider.dart';
+import 'l10n/translations.dart';
 
 class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
@@ -465,7 +466,7 @@ class _ChatListPageState extends State<ChatListPage> {
                 return Center(
                   child: Text(
                     _searchQuery.isEmpty 
-                      ? 'No secure conversations yet.\nTap + to start one.'
+                      ? context.tr('start_chat')
                       : 'No matches found.',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white24),
@@ -551,26 +552,26 @@ class _ChatListPageState extends State<ChatListPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem('Chats', Icons.chat_bubble, true, () {}),
-            _buildNavItem('Contacts', Icons.people_alt_outlined, false, () {
+            _buildNavItem(context.tr('nav_chats'), Icons.chat_bubble, true, () {}),
+            _buildNavItem(context.tr('nav_contacts'), Icons.people_alt_outlined, false, () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const ContactsPage()),
               );
             }),
-            _buildNavItem('Calls', Icons.call_outlined, false, () {
+            _buildNavItem(context.tr('nav_calls'), Icons.call_outlined, false, () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const CallsPage()),
               );
             }),
-            _buildNavItem('Vault', Icons.key_outlined, false, () {
+            _buildNavItem(context.tr('nav_vault'), Icons.key_outlined, false, () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const VaultPage()),
               );
             }),
-            _buildNavItem('Settings', Icons.settings_outlined, false, () {
+            _buildNavItem(context.tr('nav_settings'), Icons.settings_outlined, false, () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsPage()),

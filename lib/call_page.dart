@@ -56,8 +56,10 @@ class _CallPageState extends State<CallPage>
     // Defer to after first frame so context is available.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initCall();
-      // Listen for the remote party hanging up.
-      context.read<CallProvider>().onRemoteCallEnded = _onRemoteHangUp;
+      // Listen for the remote party hanging up or rejecting.
+      final callProvider = context.read<CallProvider>();
+      callProvider.onRemoteCallEnded = _onRemoteHangUp;
+      callProvider.onCallRejected = _onCallRejected;
     });
   }
 
@@ -102,7 +104,9 @@ class _CallPageState extends State<CallPage>
     // Unregister callback so a stale reference doesn't linger.
     if (mounted) {
       try {
-        context.read<CallProvider>().onRemoteCallEnded = null;
+        final callProvider = context.read<CallProvider>();
+        callProvider.onRemoteCallEnded = null;
+        callProvider.onCallRejected = null;
       } catch (_) {}
     }
     if (!kIsWeb) {
@@ -120,6 +124,19 @@ class _CallPageState extends State<CallPage>
         content: Text('The other party ended the call.'),
         duration: Duration(seconds: 3),
         backgroundColor: Color(0xFF1B2210),
+      ),
+    );
+    Navigator.of(context).pop();
+  }
+
+  /// Called when the remote party sends CALL_REJECTED.
+  void _onCallRejected() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('The other party declined the call.'),
+        duration: Duration(seconds: 3),
+        backgroundColor: Colors.redAccent,
       ),
     );
     Navigator.of(context).pop();

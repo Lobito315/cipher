@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'services/profile_service.dart';
 import 'services/auth_service.dart';
+import 'l10n/translations.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -185,9 +186,9 @@ class _ProfilePageState extends State<ProfilePage> {
           icon: const Icon(Icons.arrow_back, color: Color(0xFFF1F5F9)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Profile Information',
-          style: TextStyle(
+        title: Text(
+          context.tr('profile_title'),
+          style: const TextStyle(
             color: Color(0xFFF1F5F9),
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -262,9 +263,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  const Text(
-                    'Display Name',
-                    style: TextStyle(
+                  Text(
+                    context.tr('display_name'),
+                    style: const TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,

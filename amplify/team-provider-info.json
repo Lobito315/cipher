@@ -12,11 +12,11 @@
       "AmplifyAppId": "d3minxrcrxfndf"
     },
     "categories": {
-      "auth": {
-        "cipherb49ba192": {}
-      },
       "api": {
         "cipher": {}
+      },
+      "auth": {
+        "cipher2762851a2762851a": {}
       }
     }
   }

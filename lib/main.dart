@@ -9,8 +9,11 @@ import 'package:provider/provider.dart';
 import 'providers/privacy_provider.dart';
 import 'providers/call_provider.dart';
 import 'providers/chat_notification_provider.dart';
+import 'providers/settings_provider.dart';
 import 'components/incoming_call_overlay.dart';
 import 'components/chat_notification_banner.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/translations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +28,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => PrivacyProvider()),
         ChangeNotifierProvider(create: (_) => CallProvider()),
         ChangeNotifierProvider(create: (_) => ChatNotificationProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
       ],
       child: const MyApp(),
     ),
@@ -57,22 +61,48 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Cipher',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFBEF263)),
-        useMaterial3: true,
-      ),
-      navigatorKey: MyApp.navigatorKey,
-      home: const LoginPage(),
-      builder: (context, child) {
-        return Stack(
-          children: [
-            if (child != null) child,
-            const IncomingCallOverlay(),
-            const ChatNotificationBanner(),
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        return MaterialApp(
+          title: 'Cipher',
+          debugShowCheckedModeBanner: false,
+          themeMode: settings.themeMode,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFBEF263),
+              brightness: Brightness.light,
+            ),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFBEF263),
+              brightness: Brightness.dark,
+            ),
+            scaffoldBackgroundColor: const Color(0xFF1B2210),
+            useMaterial3: true,
+          ),
+          locale: settings.locale,
+          supportedLocales: const [
+            Locale('en', ''),
+            Locale('es', ''), // Spanish
           ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          navigatorKey: MyApp.navigatorKey,
+          home: const LoginPage(),
+          builder: (context, child) {
+            return Stack(
+              children: [
+                if (child != null) child,
+                const IncomingCallOverlay(),
+                const ChatNotificationBanner(),
+              ],
+            );
+          },
         );
       },
     );

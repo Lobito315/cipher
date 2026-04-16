@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_api/amplify_api.dart';
 import '../services/call_service.dart';
@@ -15,6 +16,10 @@ class CallProvider extends ChangeNotifier {
 
   // Fired when the remote party ends the call so CallPage can close itself.
   VoidCallback? onRemoteCallEnded;
+  // Fired when the receiver rejects the call.
+  VoidCallback? onCallRejected;
+
+  final CallService _callService = CallService();
 
   bool get isIncomingCall => _isIncomingCall;
   bool get isAudioOnly => _isAudioOnly;
@@ -57,7 +62,7 @@ class CallProvider extends ChangeNotifier {
     debugPrint('CallProvider initialized and listening for signals');
   }
 
-  void _handleSignal(String senderId, String content) {
+  void _handleSignal(String senderId, String content) async {
     final parts = content.split(':');
     if (parts.length < 2) return;
 
@@ -69,6 +74,18 @@ class CallProvider extends ChangeNotifier {
       final name = signalParts.length > 2 ? signalParts[2] : "Unknown Caller";
       final type = signalParts.length > 3 ? signalParts[3] : "video";
 
+      final prefs = await SharedPreferences.getInstance();
+      final enabled = prefs.getBool('call_notif') ?? true;
+      if (!enabled) {
+        // Auto-reject or silently ignore
+        _callService.sendResponse(
+          receiverId: senderId,
+          responseType: 'CALL_REJECTED',
+          channelId: channel,
+        );
+        return;
+      }
+
       _isIncomingCall = true;
       _isAudioOnly = type == 'audio';
       _callerId = senderId;
@@ -77,11 +94,18 @@ class CallProvider extends ChangeNotifier {
       notifyListeners();
 
     } else if (action == 'CALL_ENDED') {
+      // Reset incoming call state so the overlay closes if not answered yet.
+      _isIncomingCall = false;
+      notifyListeners();
+
       // The remote party hung up — fire the callback so CallPage can pop.
       debugPrint('Remote party ended the call (channel: ${signalParts.elementAtOrNull(1)})');
       onRemoteCallEnded?.call();
 
-    } else if (action == 'CALL_REJECTED' || action == 'CALL_ACCEPTED') {
+    } else if (action == 'CALL_REJECTED') {
+      debugPrint('Call was rejected by the other party');
+      onCallRejected?.call();
+    } else if (action == 'CALL_ACCEPTED') {
       // Handle call responses if needed
     }
   }
@@ -99,6 +123,17 @@ class CallProvider extends ChangeNotifier {
   }
 
   void rejectCall() {
+    final callerId = _callerId;
+    final channelId = _channelId;
+
+    if (callerId != null && channelId != null) {
+      _callService.sendResponse(
+        receiverId: callerId,
+        responseType: 'CALL_REJECTED',
+        channelId: channelId,
+      );
+    }
+
     _isIncomingCall = false;
     _isAudioOnly = false;
     _callerId = null;

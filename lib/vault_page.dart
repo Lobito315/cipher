@@ -6,6 +6,7 @@ import 'chat_list_page.dart';
 import 'calls_page.dart';
 import 'settings_page.dart';
 import 'contacts_page.dart';
+import 'l10n/translations.dart';
 
 class VaultPage extends StatefulWidget {
   const VaultPage({super.key});
@@ -388,9 +389,9 @@ class _VaultPageState extends State<VaultPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Vault',
-                          style: TextStyle(
+                        Text(
+                          context.tr('vault_title'),
+                          style: const TextStyle(
                             color: Color(0xFFF1F5F9),
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -497,7 +498,7 @@ class _VaultPageState extends State<VaultPage> {
                 children: [
                   _buildNavIcon(
                     Icons.chat_bubble_outline,
-                    'Chats',
+                    context.tr('nav_chats'),
                     false,
                     () => Navigator.pushReplacement(
                       context,
@@ -508,7 +509,7 @@ class _VaultPageState extends State<VaultPage> {
                   ),
                   _buildNavIcon(
                     Icons.people_alt_outlined,
-                    'Contacts',
+                    context.tr('nav_contacts'),
                     false,
                     () => Navigator.pushReplacement(
                       context,
@@ -517,7 +518,7 @@ class _VaultPageState extends State<VaultPage> {
                       ),
                     ),
                   ),
-                  _buildNavIcon(Icons.call_outlined, 'Calls', false, () {
+                  _buildNavIcon(Icons.call_outlined, context.tr('nav_calls'), false, () {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
@@ -525,8 +526,8 @@ class _VaultPageState extends State<VaultPage> {
                       ),
                     );
                   }),
-                  _buildNavIcon(Icons.shield, 'Vault', true, () {}),
-                  _buildNavIcon(Icons.settings_outlined, 'Settings', false, () {
+                  _buildNavIcon(Icons.shield, context.tr('nav_vault'), true, () {}),
+                  _buildNavIcon(Icons.settings_outlined, context.tr('nav_settings'), false, () {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(

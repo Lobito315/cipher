@@ -12,6 +12,7 @@ import 'chat_detail_page.dart';
 import 'services/contact_service.dart';
 import 'services/profile_service.dart';
 import 'models/contact.dart';
+import 'l10n/translations.dart';
 import 'services/call_service.dart';
 import 'call_page.dart';
 
@@ -63,7 +64,7 @@ class _ContactsPageState extends State<ContactsPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1B2210),
-        title: const Text('Add Contact', style: TextStyle(color: Colors.white)),
+        title: Text(context.tr('add_contact'), style: const TextStyle(color: Colors.white)),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -141,9 +142,9 @@ class _ContactsPageState extends State<ContactsPage> {
         shape: const Border(
           bottom: BorderSide(color: Color(0x1ABEF263), width: 1),
         ),
-        title: const Text(
-          'Secure Contacts',
-          style: TextStyle(
+        title: Text(
+          context.tr('contacts_title'),
+          style: const TextStyle(
             color: Color(0xFFF1F5F9),
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -194,17 +195,17 @@ class _ContactsPageState extends State<ContactsPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem('Chats', Icons.chat_bubble_outline, false, () {
+            _buildNavItem(context.tr('nav_chats'), Icons.chat_bubble_outline, false, () {
                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ChatListPage()));
             }),
-            _buildNavItem('Contacts', Icons.people_alt, true, () {}),
-            _buildNavItem('Calls', Icons.call_outlined, false, () {
+            _buildNavItem(context.tr('nav_contacts'), Icons.people_alt, true, () {}),
+            _buildNavItem(context.tr('nav_calls'), Icons.call_outlined, false, () {
                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const CallsPage()));
             }),
-            _buildNavItem('Vault', Icons.key_outlined, false, () {
+            _buildNavItem(context.tr('nav_vault'), Icons.key_outlined, false, () {
                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const VaultPage()));
             }),
-            _buildNavItem('Settings', Icons.settings_outlined, false, () {
+            _buildNavItem(context.tr('nav_settings'), Icons.settings_outlined, false, () {
                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
             }),
           ],

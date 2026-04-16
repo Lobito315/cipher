@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 import 'encryption_service.dart';
 import 'profile_service.dart';
 import 'call_service.dart';
@@ -13,6 +14,9 @@ class ChatService {
 
   // Cache for shared secrets to optimize performance
   final Map<String, SecretKey> _sharedSecretCache = {};
+
+  // Local optimistic update stream
+  static final StreamController<Map<String, dynamic>> _localMessageController = StreamController.broadcast();
 
   /// Sends an E2EE message to a specific user
   Future<void> sendMessage({
@@ -40,7 +44,7 @@ class ChatService {
 
     // 3. Push to AWS Amplify (GraphQL Mutation)
     const operation = 'mutation CreateMessage(\$input: CreateMessageInput!) { '
-        'createMessage(input: \$input) { id senderId receiverId content createdAt } }';
+        'createMessage(input: \$input) { id senderId receiverId content status createdAt } }';
     
     final request = GraphQLRequest<String>(
       document: operation,
@@ -49,6 +53,7 @@ class ChatService {
           'senderId': senderId,
           'receiverId': receiverId,
           'content': encryptedContent,
+          'status': 1, // Sent
           'createdAt': DateTime.now().toUtc().toIso8601String(),
         }
       },
@@ -58,6 +63,16 @@ class ChatService {
     final response = await Amplify.API.mutate(request: request).response;
     if (response.hasErrors) {
       throw Exception('Failed to send message: \${response.errors}');
+    } else if (response.data != null) {
+      try {
+        final decoded = jsonDecode(response.data!);
+        final message = decoded['createMessage'];
+        if (message != null) {
+          _localMessageController.add(message);
+        }
+      } catch (e) {
+        print('Error broadcasting local message: $e');
+      }
     }
   }
 
@@ -66,43 +81,56 @@ class ChatService {
     final user = await Amplify.Auth.getCurrentUser();
     final myId = user.userId;
 
-    const operation = 'query ListMessages(\$filter: ModelMessageFilterInput) { '
-        'listMessages(filter: \$filter) { items { id senderId receiverId content createdAt } } }';
+    const operation = 'query ListMessages(\$filter: ModelMessageFilterInput, \$nextToken: String) { '
+        'listMessages(filter: \$filter, limit: 1000, nextToken: \$nextToken) { items { id senderId receiverId content status createdAt } nextToken } }';
     
-    final request = GraphQLRequest<String>(
-      document: operation,
-      variables: {
-        'filter': {
-          'or': [
-            {
-              'and': [
-                {'senderId': {'eq': myId}},
-                {'receiverId': {'eq': otherUserId}}
+    final List<Map<String, dynamic>> allItems = [];
+    String? nextToken;
+    
+    try {
+      do {
+        final request = GraphQLRequest<String>(
+          document: operation,
+          variables: {
+            'filter': {
+              'or': [
+                {
+                  'and': [
+                    {'senderId': {'eq': myId}},
+                    {'receiverId': {'eq': otherUserId}}
+                  ]
+                },
+                {
+                  'and': [
+                    {'senderId': {'eq': otherUserId}},
+                    {'receiverId': {'eq': myId}}
+                  ]
+                }
               ]
             },
-            {
-              'and': [
-                {'senderId': {'eq': otherUserId}},
-                {'receiverId': {'eq': myId}}
-              ]
-            }
-          ]
+            if (nextToken != null) 'nextToken': nextToken,
+          },
+          authorizationMode: APIAuthorizationType.apiKey,
+        );
+
+        final response = await Amplify.API.query(request: request).response;
+        if (response.hasErrors || response.data == null) {
+          break; // Stop fetching on chunk error
         }
-      },
-      authorizationMode: APIAuthorizationType.apiKey,
-    );
 
-    final response = await Amplify.API.query(request: request).response;
-    if (response.hasErrors || response.data == null) {
-      return [];
-    }
+        final decoded = jsonDecode(response.data!);
+        final listMessages = decoded['listMessages'];
+        if (listMessages != null) {
+          final items = (listMessages['items'] as List).cast<Map<String, dynamic>>();
+          allItems.addAll(items);
+          nextToken = listMessages['nextToken'] as String?;
+        } else {
+          nextToken = null;
+        }
+      } while (nextToken != null);
 
-    try {
-      final decoded = jsonDecode(response.data!);
-      final items = (decoded['listMessages']['items'] as List).cast<Map<String, dynamic>>();
-      
       // Sort oldest first
-      items.sort((a, b) => (a['createdAt'] as String).compareTo(b['createdAt'] as String));
+      allItems.sort((a, b) => (a['createdAt'] as String).compareTo(b['createdAt'] as String));
 
       SecretKey? secret = _sharedSecretCache[otherUserId];
       if (secret == null) {
@@ -113,7 +141,7 @@ class ChatService {
         }
       }
 
-      for (var msg in items) {
+      for (var msg in allItems) {
         if (secret != null) {
           try {
             msg['content'] = await _encryptionService.decryptMessage(msg['content'] as String, secret);
@@ -125,7 +153,7 @@ class ChatService {
           msg['content'] = "[Missing Key]";
         }
       }
-      return items;
+      return allItems;
     } catch (e) {
       print('Error parsing messages: \$e');
       return [];
@@ -179,45 +207,58 @@ class ChatService {
       final myId = user.userId;
 
       // 1. Initial Query
-      const queryDoc = 'query ListAllMyMessages(\$filter: ModelMessageFilterInput) { '
-          'listMessages(filter: \$filter) { items { id senderId receiverId content createdAt } } }';
+      const queryDoc = 'query ListAllMyMessages(\$filter: ModelMessageFilterInput, \$nextToken: String) { '
+          'listMessages(filter: \$filter, limit: 1000, nextToken: \$nextToken) { items { id senderId receiverId content status createdAt } nextToken } }';
       
-      final queryRequest = GraphQLRequest<String>(
-        document: queryDoc,
-        variables: {
-          'filter': {
-            'or': [
-              {'senderId': {'eq': myId}},
-              {'receiverId': {'eq': myId}}
-            ]
-          }
-        },
-        authorizationMode: APIAuthorizationType.apiKey,
-      );
-
+      String? nextToken;
       try {
-        final response = await Amplify.API.query(request: queryRequest).response;
-        if (!response.hasErrors && response.data != null) {
-          final decoded = jsonDecode(response.data!);
-          final items = (decoded['listMessages']['items'] as List).cast<Map<String, dynamic>>();
-          
-          for (var msg in items) {
-            final content = msg['content'] as String;
-            // Skip internal contacts storage messages and call signals
-            if (!content.startsWith(CallService.signalPrefix) &&
-                !content.startsWith('__cipher_contacts_v1__')) {
-              _updateLatestMessage(msg, myId, latestMessagesMap);
+        do {
+          final queryRequest = GraphQLRequest<String>(
+            document: queryDoc,
+            variables: {
+              'filter': {
+                'or': [
+                  {'senderId': {'eq': myId}},
+                  {'receiverId': {'eq': myId}}
+                ]
+              },
+              if (nextToken != null) 'nextToken': nextToken,
+            },
+            authorizationMode: APIAuthorizationType.apiKey,
+          );
+
+          final response = await Amplify.API.query(request: queryRequest).response;
+          if (!response.hasErrors && response.data != null) {
+            final decoded = jsonDecode(response.data!);
+            final listMessages = decoded['listMessages'];
+            if (listMessages != null) {
+              final items = (listMessages['items'] as List).cast<Map<String, dynamic>>();
+              
+              for (var msg in items) {
+                final content = msg['content'] as String;
+                // Skip internal contacts storage messages and call signals
+                if (!content.startsWith(CallService.signalPrefix) &&
+                    !content.startsWith('__cipher_contacts_v1__')) {
+                  _updateLatestMessage(msg, myId, latestMessagesMap);
+                }
+              }
+              
+              nextToken = listMessages['nextToken'] as String?;
+            } else {
+              nextToken = null;
             }
+          } else {
+            break;
           }
-          controller.add(_sortChats(latestMessagesMap));
-        }
+        } while (nextToken != null);
+        controller.add(_sortChats(latestMessagesMap));
       } catch (e) {
         print('Error in initial chat list fetch: $e');
       }
 
       // 2. Subscribe to new messages
       const subDoc = 'subscription OnCreateMessage { '
-          'onCreateMessage { id senderId receiverId content createdAt } }';
+          'onCreateMessage { id senderId receiverId content status createdAt } }';
       
       final subRequest = GraphQLRequest<String>(document: subDoc, authorizationMode: APIAuthorizationType.apiKey);
       final operation = Amplify.API.subscribe(
@@ -242,6 +283,18 @@ class ChatService {
             }
           } catch (e) {
             print('Error parsing message subscription: $e');
+          }
+        }
+      });
+
+      // 3. Listen to optimistic local messages
+      _localMessageController.stream.listen((message) {
+        if (message['senderId'] == myId || message['receiverId'] == myId) {
+          final content = message['content'] as String;
+          if (!content.startsWith(CallService.signalPrefix) &&
+              !content.startsWith('__cipher_contacts_v1__')) {
+            _updateLatestMessage(message, myId, latestMessagesMap);
+            controller.add(_sortChats(latestMessagesMap));
           }
         }
       });
@@ -329,12 +382,20 @@ class ChatService {
 
       // 1. Fetch historical messages
       final historical = await getMessages(otherUserId);
+      
+      // Auto-ACK for historical messages from other user
+      for (var msg in historical) {
+        if (msg['senderId'] == otherUserId && (msg['status'] == null || msg['status'] == 1)) {
+          markAsDelivered(msg['id']);
+        }
+      }
+
       accumulatedMessages.addAll(historical);
       controller.add(List.from(accumulatedMessages));
 
       // 2. Subscribe to new messages
       const subscriptionDocument = 'subscription OnCreateMessage { '
-          'onCreateMessage { id senderId receiverId content createdAt } }';
+          'onCreateMessage { id senderId receiverId content status createdAt } }';
       
       final subscriptionRequest = GraphQLRequest<String>(
         document: subscriptionDocument,
@@ -360,6 +421,12 @@ class ChatService {
                 final content = message['content'] as String;
                 if (!content.startsWith(CallService.signalPrefix) &&
                     !content.startsWith('__cipher_contacts_v1__')) {
+                  
+                  // Auto-ACK for incoming messages
+                  if (isFromOther && (message['status'] == null || message['status'] == 1)) {
+                    markAsDelivered(message['id']);
+                  }
+
                   if (!accumulatedMessages.any((m) => m['id'] == message['id'])) {
                     accumulatedMessages.add(message);
                     accumulatedMessages.sort((a, b) => (a['createdAt'] as String).compareTo(b['createdAt'] as String));
@@ -373,10 +440,86 @@ class ChatService {
           }
         }
       });
+
+      // 4. Listen to optimistic local messages
+      _localMessageController.stream.listen((message) {
+        final isFromOther = message['senderId'] == otherUserId && message['receiverId'] == myId;
+        final isFromMe = message['senderId'] == myId && message['receiverId'] == otherUserId;
+        
+        if (isFromOther || isFromMe) {
+          final content = message['content'] as String;
+          if (!content.startsWith(CallService.signalPrefix) &&
+              !content.startsWith('__cipher_contacts_v1__')) {
+            if (!accumulatedMessages.any((m) => m['id'] == message['id'])) {
+              accumulatedMessages.add(message);
+              accumulatedMessages.sort((a, b) => (a['createdAt'] as String).compareTo(b['createdAt'] as String));
+              controller.add(List.from(accumulatedMessages));
+            }
+          }
+        }
+      });
+
+      // 5. Subscribe to message UPDATES (for Status changes)
+      const updateSubDoc = 'subscription OnUpdateMessage { '
+          'onUpdateMessage { id senderId receiverId content status createdAt } }';
+      
+      final updateSubRequest = GraphQLRequest<String>(
+        document: updateSubDoc,
+        authorizationMode: APIAuthorizationType.apiKey,
+      );
+
+      final updateOperation = Amplify.API.subscribe(updateSubRequest);
+      updateOperation.listen((event) {
+        if (event.data != null) {
+          try {
+            final decoded = jsonDecode(event.data!);
+            final updatedMsg = decoded['onUpdateMessage'];
+            if (updatedMsg != null) {
+              final index = accumulatedMessages.indexWhere((m) => m['id'] == updatedMsg['id']);
+              if (index != -1) {
+                // If we already have a decrypted version, keep it to avoid flicker
+                final existing = accumulatedMessages[index];
+                if (existing['content_decrypted'] == true) {
+                  updatedMsg['content'] = existing['content'];
+                  updatedMsg['content_decrypted'] = true;
+                }
+                
+                accumulatedMessages[index] = updatedMsg;
+                controller.add(List.from(accumulatedMessages));
+              }
+            }
+          } catch (e) {
+            print('Error parsing update subscription: $e');
+          }
+        }
+      });
     }
 
     run();
     return controller.stream;
+  }
+
+  /// Marks a message as delivered
+  Future<void> markAsDelivered(String messageId) async {
+    const operation = 'mutation UpdateMessage(\$input: UpdateMessageInput!) { '
+        'updateMessage(input: \$input) { id status } }';
+    
+    final request = GraphQLRequest<String>(
+      document: operation,
+      variables: {
+        'input': { 'id': messageId, 'status': 2 }
+      },
+      authorizationMode: APIAuthorizationType.apiKey,
+    );
+
+    try {
+      final response = await Amplify.API.mutate(request: request).response;
+      if (response.hasErrors) {
+        debugPrint('Failed to mark as delivered: ${response.errors}');
+      }
+    } catch (e) {
+      debugPrint('Error marking as delivered: $e');
+    }
   }
 
   /// Deletes a message for both users

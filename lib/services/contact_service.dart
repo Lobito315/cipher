@@ -148,28 +148,29 @@ class ContactService {
       final user = await Amplify.Auth.getCurrentUser();
       final myId = user.userId;
 
-      const operation = 'query ListMessages(\$filter: ModelMessageFilterInput) { '
-          'listMessages(filter: \$filter) { items { id content createdAt } } }';
-
+      const operation = 'query MessagesBySender(\$senderId: ID!, \$filter: ModelMessageFilterInput) { '
+          'messagesBySender(senderId: \$senderId, filter: \$filter, sortDirection: DESC, limit: 10) { '
+          'items { id content createdAt } } }';
+          
       final request = GraphQLRequest<String>(
         document: operation,
         variables: {
+          'senderId': myId,
           'filter': {
             'and': [
-              {'senderId': {'eq': myId}},
               {'receiverId': {'eq': myId}},
               {'content': {'beginsWith': _contactsMarker}},
             ]
           }
         },
-        authorizationMode: APIAuthorizationType.apiKey,
+        authorizationMode: APIAuthorizationType.userPools,
       );
 
       final response = await Amplify.API.query(request: request).response;
       if (response.hasErrors || response.data == null) return null;
 
       final decoded = jsonDecode(response.data!);
-      final items = (decoded['listMessages']['items'] as List)
+      final items = (decoded['messagesBySender']['items'] as List)
           .cast<Map<String, dynamic>>();
 
       if (items.isEmpty) return null;
@@ -225,7 +226,7 @@ class ContactService {
             'createdAt': DateTime.now().toUtc().toIso8601String(),
           }
         },
-        authorizationMode: APIAuthorizationType.apiKey,
+        authorizationMode: APIAuthorizationType.userPools,
       );
 
       final response = await Amplify.API.mutate(request: request).response;
@@ -243,29 +244,29 @@ class ContactService {
 
   Future<void> _deleteOldCloudRecord(String myId) async {
     try {
-      // Find old contacts records
-      const query = 'query ListMessages(\$filter: ModelMessageFilterInput) { '
-          'listMessages(filter: \$filter) { items { id } } }';
+      // Find old contacts records using index
+      const query = 'query MessagesBySender(\$senderId: ID!, \$filter: ModelMessageFilterInput) { '
+          'messagesBySender(senderId: \$senderId, filter: \$filter) { items { id } } }';
 
       final queryReq = GraphQLRequest<String>(
         document: query,
         variables: {
+          'senderId': myId,
           'filter': {
             'and': [
-              {'senderId': {'eq': myId}},
               {'receiverId': {'eq': myId}},
               {'content': {'beginsWith': _contactsMarker}},
             ]
           }
         },
-        authorizationMode: APIAuthorizationType.apiKey,
+        authorizationMode: APIAuthorizationType.userPools,
       );
 
       final response = await Amplify.API.query(request: queryReq).response;
       if (response.hasErrors || response.data == null) return;
 
       final decoded = jsonDecode(response.data!);
-      final items = (decoded['listMessages']['items'] as List)
+      final items = (decoded['messagesBySender']['items'] as List)
           .cast<Map<String, dynamic>>();
 
       for (final item in items) {
@@ -274,7 +275,7 @@ class ContactService {
         final deleteReq = GraphQLRequest<String>(
           document: deleteMutation,
           variables: {'input': {'id': item['id']}},
-          authorizationMode: APIAuthorizationType.apiKey,
+          authorizationMode: APIAuthorizationType.userPools,
         );
         await Amplify.API.mutate(request: deleteReq).response;
       }

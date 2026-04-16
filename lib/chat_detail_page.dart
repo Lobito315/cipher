@@ -11,6 +11,7 @@ import 'services/profile_service.dart';
 import 'services/contact_service.dart';
 import 'models/contact.dart';
 import 'package:amplify_flutter/amplify_flutter.dart' as amplify;
+import 'l10n/translations.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String receiverId;
@@ -116,9 +117,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             const SizedBox(height: 24),
             ListTile(
               leading: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent),
-              title: const Text(
-                'Redact Message',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              title: Text(
+                context.tr('redact_message'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
               ),
               subtitle: const Text(
                 'Permanently remove this message for all participants.',
@@ -355,10 +356,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     ).toList();
                     
                     if (messages.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Text(
-                          'No secure messages yet.',
-                          style: TextStyle(color: Colors.white24),
+                          context.tr('no_messages'),
+                          style: const TextStyle(color: Colors.white24),
                         ),
                       );
                     }
@@ -380,6 +381,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         return _MessageBubble(
                           text: msg['content'],
                           isMe: isMe,
+                          status: msg['status'],
                           time: DateFormat('HH:mm').format(time),
                           avatarBase64: isMe ? _myAvatarBase64 : _receiverAvatarBase64,
                           onLongPress: () {
@@ -481,6 +483,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 class _MessageBubble extends StatelessWidget {
   final String text;
   final bool isMe;
+  final int? status;
   final String time;
   final String? avatarBase64;
   final VoidCallback? onLongPress;
@@ -488,6 +491,7 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.text,
     required this.isMe,
+    this.status,
     required this.time,
     this.avatarBase64,
     this.onLongPress,
@@ -570,12 +574,29 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    time,
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
-                      fontSize: 10,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        time,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 10,
+                        ),
+                      ),
+                      if (isMe) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          (status != null && status! >= 2)
+                              ? Icons.done_all
+                              : Icons.done,
+                          size: 14,
+                          color: (status != null && status! >= 2)
+                              ? const Color(0xFFBEF263) // Neon Green when delivered
+                              : const Color(0xFF64748B), // Grey when sent
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),

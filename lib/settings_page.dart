@@ -15,6 +15,8 @@ import 'package:provider/provider.dart';
 import 'providers/call_provider.dart';
 import 'providers/chat_notification_provider.dart';
 import 'services/contact_service.dart';
+import 'providers/settings_provider.dart';
+import 'l10n/translations.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -39,11 +41,20 @@ class _SettingsPageState extends State<SettingsPage> {
     };
   }
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<SettingsProvider>().fetchMfaStatus();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
     return Scaffold(
-      backgroundColor: const Color(0xFF1B2210), // background-dark
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1B2210).withValues(alpha: 0.8),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.8),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -54,9 +65,9 @@ class _SettingsPageState extends State<SettingsPage> {
         shape: const Border(
           bottom: BorderSide(color: Color(0x1ABEF263), width: 1),
         ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(
+        title: Text(
+          context.tr('settings'),
+          style: const TextStyle(
             color: Color(0xFFF1F5F9),
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -79,9 +90,9 @@ class _SettingsPageState extends State<SettingsPage> {
               _buildProfileCard(context, email, uuid, displayName),
               const SizedBox(height: 24),
 
-              _buildSectionHeader('ACCOUNT'),
+              _buildSectionHeader(context.tr('account')),
               _buildSettingItem(
-                'Profile Information',
+                context.tr('profile_info'),
                 Icons.person_outline,
                 onTap: () async {
                   final result = await Navigator.push(
@@ -92,7 +103,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
               _buildSettingItem(
-                'Privacy & Security',
+                context.tr('privacy_security'),
                 Icons.shield_outlined,
                 onTap: () {
                   Navigator.push(
@@ -102,49 +113,82 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
               _buildSettingItem(
-                'Two-Factor Authentication',
+                context.tr('two_factor'),
                 Icons.enhanced_encryption_outlined,
-                onTap: () {},
-                trailing: const Text(
-                  'ON',
-                  style: TextStyle(
-                    color: Color(0xFFBEF263),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
+                onTap: () async {
+                  final success = await settings.toggleMfa(!settings.mfaEnabled);
+                  if (!success && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(context.tr('mfa_required'))),
+                    );
+                  }
+                },
+                trailing: settings.mfaLoading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(
+                      settings.mfaEnabled ? context.tr('on') : context.tr('off'),
+                      style: TextStyle(
+                        color: settings.mfaEnabled ? const Color(0xFFBEF263) : const Color(0xFF94A3B8),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
               ),
 
               const SizedBox(height: 24),
-              _buildSectionHeader('PREFERENCES'),
+              _buildSectionHeader(context.tr('preferences')),
               _buildSettingItem(
-                'Notifications',
-                Icons.notifications_outlined,
-                onTap: () {},
+                context.tr('chat_notifications'),
+                Icons.chat_bubble_outline,
+                onTap: () {
+                  settings.setChatNotifications(!settings.chatNotificationsEnabled);
+                },
+                trailing: Switch(
+                  value: settings.chatNotificationsEnabled,
+                  onChanged: (val) => settings.setChatNotifications(val),
+                  activeColor: const Color(0xFFBEF263),
+                ),
               ),
               _buildSettingItem(
-                'Appearance',
+                context.tr('call_notifications'),
+                Icons.call_outlined,
+                onTap: () {
+                  settings.setCallNotifications(!settings.callNotificationsEnabled);
+                },
+                trailing: Switch(
+                  value: settings.callNotificationsEnabled,
+                  onChanged: (val) => settings.setCallNotifications(val),
+                  activeColor: const Color(0xFFBEF263),
+                ),
+              ),
+              _buildSettingItem(
+                context.tr('appearance'),
                 Icons.palette_outlined,
-                onTap: () {},
-                trailing: const Text(
-                  'DARK',
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                onTap: () {
+                  settings.setThemeMode(settings.themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
+                },
+                trailing: Text(
+                  settings.themeMode == ThemeMode.dark ? context.tr('dark') : context.tr('light'),
+                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                 ),
               ),
               _buildSettingItem(
-                'Language',
+                context.tr('language'),
                 Icons.language_outlined,
-                onTap: () {},
-                trailing: const Text(
-                  'ENGLISH',
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                onTap: () {
+                  final newLocale = settings.locale.languageCode == 'en' ? const Locale('es') : const Locale('en');
+                  settings.setLocale(newLocale);
+                },
+                trailing: Text(
+                  settings.locale.languageCode == 'en' ? context.tr('english') : context.tr('spanish'),
+                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                 ),
               ),
 
               const SizedBox(height: 24),
-              _buildSectionHeader('DANGER ZONE'),
+              _buildSectionHeader(context.tr('danger_zone')),
               _buildSettingItem(
-                'Log Out',
+                context.tr('logout'),
                 Icons.logout,
                 iconColor: Colors.redAccent,
                 onTap: () async {
@@ -167,9 +211,9 @@ class _SettingsPageState extends State<SettingsPage> {
         },
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF1B2210),
-          border: Border(top: BorderSide(color: Color(0x1ABEF263), width: 1)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: const Border(top: BorderSide(color: Color(0x1ABEF263), width: 1)),
         ),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: Row(
@@ -366,8 +410,8 @@ class _SettingsPageState extends State<SettingsPage> {
         leading: Icon(icon, color: iconColor ?? const Color(0xFFBEF263)),
         title: Text(
           title,
-          style: const TextStyle(
-            color: Color(0xFFF1F5F9),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w500,
           ),
